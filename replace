@@ -1,0 +1,6 @@
+#!/bin/sh
+
+ver=$1
+
+kill $(ps -A |grep dwm | awk '{print $1;}' )
+$ver &
