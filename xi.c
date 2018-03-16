@@ -1,14 +1,8 @@
-#include <stdio.h>
+#include "xi.h"
+
 #include <string.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/XInput2.h>
-
-typedef struct {
-	int x,y;
-} Point;
-typedef void (*X11_pointer_app) (Point p);
 
 static void selelct_motion_events(Display *dpy, Window win)
 {
@@ -28,7 +22,7 @@ static void selelct_motion_events(Display *dpy, Window win)
 	XFlush(dpy);
 }
 
-static bool xi2_app (X11_pointer_app touch_action)
+bool xi2_app (X11_pointer_app touch_action)
 {
 	Display	*dpy = XOpenDisplay (NULL);
 	if (dpy == NULL)
@@ -70,19 +64,5 @@ static bool xi2_app (X11_pointer_app touch_action)
 		XFreeEventData(dpy, cookie);
 	}
 	return true;
-}
-
-void trace_pointer (Point pos) {
-	printf ("%d,%d\n", pos.x, pos.y);
-}
-
-int main (int argc, char **argv)
-{
-	if (!xi2_app (&trace_pointer) ) {
-		fprintf (stderr, "Unable to start XInput app.");
-		return 1;
-	}
-
-	return 0;
 }
 

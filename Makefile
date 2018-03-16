@@ -3,13 +3,8 @@
 
 include config.mk
 
-SRC = drw.c dwm.c util.c
-OBJ = ${SRC:.c=.o}
+all: options dwm touch_test
 
-all: options dwm xi
-
-xi: xi.c
-	gcc -Wall -pedantic -std=c99 xi.c -o xi -lX11 -lXi
 
 options:
 	@echo dwm build options:
@@ -17,9 +12,14 @@ options:
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
 
-.c.o:
-	@echo CC $<
-	@${CC} -c ${CFLAGS} $<
+touch_test: o/xi.o o/touch_test.o
+	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi
+
+o/%.o: %.c o/
+	${CC} ${CFLAGS} -c -o $@ $<
+
+o/:
+	mkdir -p o
 
 ${OBJ}: config.h config.mk
 
@@ -27,9 +27,9 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-dwm: ${OBJ}
+dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
 	@echo CC -o $@
-	@${CC} -o $@ ${OBJ} ${LDFLAGS}
+	@${CC} -o $@ $^ ${LDFLAGS}
 
 clean:
 	@echo cleaning

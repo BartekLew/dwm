@@ -4,12 +4,13 @@ dwm is an extremely fast, small, and dynamic window manager for X.
 
 THIS FORK is for adapting dwm to touchscreen-only environment. Currently
 it's usefull for keeping windows in order, But no commands when using
-XVkbd as keyboard emulator. Testing machine: RPi/arch Linux for ARM.
+XVkbd as keyboard emulator. Testing machine: RPi/Arch Linux for ARM.
 
 
 Requirements
 ------------
-In order to build dwm you need the Xlib header files.
+In order to build dwm you need the Xlib header files. Your X11 server have to
+support XInput 2.2+.
 
 
 Installation
