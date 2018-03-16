@@ -3,7 +3,7 @@
 
 include config.mk
 
-all: options dwm touch_test
+all: options bin/ bin/dwm bin/touch_test bin/shape_test
 
 
 options:
@@ -12,8 +12,18 @@ options:
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
 
-touch_test: o/xi.o o/touch_test.o
-	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi
+bin/shape_test: o/xi.o o/shape_test.o
+	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt
+
+bin/touch_test: o/xi.o o/touch_test.o
+	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt
+
+bin/dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
+	@echo CC -o $@
+	@${CC} -o $@ $^ ${LDFLAGS}
+
+bin/:
+	mkdir -p bin
 
 o/%.o: %.c o/
 	${CC} ${CFLAGS} -c -o $@ $<
@@ -27,13 +37,9 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
-	@echo CC -o $@
-	@${CC} -o $@ $^ ${LDFLAGS}
-
 clean:
 	@echo cleaning
-	@rm -f dwm ${OBJ} dwm-${VERSION}.tar.gz
+	@rm -fr bin o *.tar.gz
 
 dist: clean
 	@echo creating dist tarball
