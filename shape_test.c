@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 uintmax_t	now, last_time;
+Point		last;
 bool		touching;
 
 /*
@@ -24,13 +25,21 @@ bool		touching;
 static void each_cycle (int signo) {
 	if (last_time != now++ && touching) {
 		touching = false;
-		printf ("hit\n");
+		printf (": %d, %d %lld.%llds\n", last.x, last.y, now/10, now%10);
 	}
 }
 
 static void trace_pointer (Point pos) {
 	last_time = now;
-	touching = true;
+
+	if (touching) { 
+		printf ("%d, %d ", pos.x - last.x, pos.y - last.y);
+	}
+	else {
+		now = last_time = 0;
+		touching = true;
+	}
+	last = pos;
 }
 
 int main (int argc, char **argv)

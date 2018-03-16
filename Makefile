@@ -3,7 +3,7 @@
 
 include config.mk
 
-all: options bin/ bin/dwm bin/touch_test bin/shape_test
+all: options bin/dwm bin/touch_test bin/shape_test
 
 
 options:
@@ -25,7 +25,7 @@ bin/dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
 bin/:
 	mkdir -p bin
 
-o/%.o: %.c o/
+o/%.o: %.c 
 	${CC} ${CFLAGS} -c -o $@ $<
 
 o/:
