@@ -6,7 +6,10 @@ include config.mk
 SRC = drw.c dwm.c util.c
 OBJ = ${SRC:.c=.o}
 
-all: options dwm
+all: options dwm xi
+
+xi: xi.c
+	gcc -Wall -pedantic -std=c99 xi.c -o xi -lX11 -lXi
 
 options:
 	@echo dwm build options:

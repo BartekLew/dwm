@@ -4,7 +4,7 @@ dwm is an extremely fast, small, and dynamic window manager for X.
 
 THIS FORK is for adapting dwm to touchscreen-only environment. Currently
 it's usefull for keeping windows in order, But no commands when using
-XVkbd as keyboard emulator.
+XVkbd as keyboard emulator. Testing machine: RPi/arch Linux for ARM.
 
 
 Requirements

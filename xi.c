@@ -5,29 +5,10 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/XInput2.h>
 
-typedef void (*X11_app) (Display *dpy, int xi_opcode);
 typedef struct {
 	int x,y;
 } Point;
-
-static bool xi2_app (X11_app entry)
-{
-	Display	*dpy = XOpenDisplay (NULL);
-	if (dpy == NULL)
-		return false;
-
-	int minor = 2, major=2, xi_opcode, event, error;
-
-	/* test if XInput supported at all.
-	   on error second call puts supported version in given variables. use it
-	   if you have lower version. This might be enough. */
-	if (!XQueryExtension(dpy, "XInputExtension", &xi_opcode, &event, &error) ||
-		XIQueryVersion(dpy, &major, &minor) == BadRequest)
-		return false;
-
-	entry (dpy, xi_opcode);
-	return true;
-}
+typedef void (*X11_pointer_app) (Point p);
 
 static void selelct_motion_events(Display *dpy, Window win)
 {
@@ -47,7 +28,21 @@ static void selelct_motion_events(Display *dpy, Window win)
 	XFlush(dpy);
 }
 
-void trace_pointer (Display *dpy, int xi_opcode) {
+static bool xi2_app (X11_pointer_app touch_action)
+{
+	Display	*dpy = XOpenDisplay (NULL);
+	if (dpy == NULL)
+		return false;
+
+	int minor = 2, major=2, xi_opcode, event, error;
+
+	/* test if XInput supported at all.
+	   on error second call puts supported version in given variables. use it
+	   if you have lower version. This might be enough. */
+	if (!XQueryExtension(dpy, "XInputExtension", &xi_opcode, &event, &error) ||
+		XIQueryVersion(dpy, &major, &minor) == BadRequest)
+		return false;
+
 	Window root = DefaultRootWindow (dpy);
 	selelct_motion_events(dpy, root);
 
@@ -70,10 +65,15 @@ void trace_pointer (Display *dpy, int xi_opcode) {
 				&(root_rel.x), &(root_rel.y),
 				&(win_rel.x), &(win_rel.y), &mask
 			);
-		    	printf ("%d,%d\n", root_rel.x, root_rel.y);
+			touch_action (root_rel);
 		}
 		XFreeEventData(dpy, cookie);
 	}
+	return true;
+}
+
+void trace_pointer (Point pos) {
+	printf ("%d,%d\n", pos.x, pos.y);
 }
 
 int main (int argc, char **argv)
