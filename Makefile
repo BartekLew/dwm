@@ -13,7 +13,7 @@ options:
 	@echo "CC       = ${CC}"
 
 bin/shape_test: o/xi.o o/shape_test.o
-	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt
+	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt -lm
 
 bin/touch_test: o/xi.o o/touch_test.o
 	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt
