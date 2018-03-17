@@ -17,7 +17,8 @@ Movement movement (Point a, Point b) {
 
 	return	(Movement) {
 		.distance = diag,
-		.direction = h / diag
+		.direction = (w < 0)	? -h / diag
+					: h /diag
 	};
 }
 
