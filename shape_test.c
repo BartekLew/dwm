@@ -6,17 +6,24 @@
 #include <stdio.h>
 #include <math.h>
 
+typedef struct {
+	float direction, distance;
+} Movement;
 
-float direction (Point a, Point b) {
+Movement movement (Point a, Point b) {
 	float	h = b.y - a.y,
 		w = b.x - a.x,
 		diag = sqrt (w*w + h*h);
 
-	return	h / diag; /* NaN = no direction*/
+	return	(Movement) {
+		.distance = diag,
+		.direction = h / diag
+	};
 }
 
 uintmax_t	now, last_time;
 Point		last;
+Movement	total_mov;
 bool		touching;
 
 /*
@@ -35,7 +42,10 @@ bool		touching;
 static void each_cycle (int signo) {
 	if (last_time != now++ && touching) {
 		touching = false;
-		printf (": %4d, %4d %2lld.%1llds\n\n", last.x, last.y, now/10, now%10);
+		printf (": %.2f %.2f %2lld.%1llds\n\n", 
+			total_mov.distance,
+			total_mov.direction / total_mov.distance,
+			 now/10, now%10);
 	}
 }
 
@@ -43,12 +53,18 @@ static void trace_pointer (Point pos) {
 	last_time = now;
 
 	if (touching) { 
-		printf ("%.2f\t",
-			direction (pos, last)
-		);
+		Movement m = movement (pos, last);
+		total_mov = (Movement) {
+			.distance = total_mov.distance + m.distance,
+			.direction = (isnan(m.direction))
+				? total_mov.direction
+				: total_mov.direction +
+					m.distance * m.direction
+		};
 	}
 	else {
 		now = last_time = 0;
+		total_mov = (Movement){.distance=0};
 		touching = true;
 	}
 	last = pos;
