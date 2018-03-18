@@ -4,10 +4,14 @@
 
 #include "xi.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <math.h>
 
+typedef uint_fast16_t Cycle;
 typedef struct {
-	float direction, distance;
+	Point	start, end;
+	float	direction, distance;
+	Cycle	until;
 } Movement;
 
 Movement movement (Point a, Point b) {
@@ -17,63 +21,71 @@ Movement movement (Point a, Point b) {
 
 	return	(Movement) {
 		.distance = diag,
-		.direction = (w < 0)	? -h / diag
-					: h /diag
+		.direction = h / diag
 	};
 }
 
-uintmax_t	now, last_time;
-Point		last;
-Movement	total_mov;
+Cycle		now;
+Movement	mov;
 bool		touching;
 
 /*
-	cycle is XInput refresh time. You can check it using
-	touch_test from this package. On my machine I get 50
-	events each second so 20ms is cycle time.
-	BUT: in practice it it turned out that if some other
-	events occur, Xserver would need more time and i get
-	more timer cycles in between. The effect is that i get
-	"hit" when I move cursor too. 0.1 sec seems to be safe
-	value here.
+	Except of handling X events we need additional timer
+	to handle a moment when a touch is released because
+	the most accurate interface - XInput inform us only
+	about touched points. We need to adjust the interval
+	for this timer. It must be longer than interval between
+	XInput events, otherwise it would interpret all points
+	as separate touches. This interval may be cheched
+	using touch_test tool in this repo. On my platform
+	(RPi3) I get ~45-50 events per second so it must be
+	greater than 0.02s. At the same time if it's too high
+	two separate touches could be merged into one. For
+	me 0.1s interval works well.
 */
 #define Msec 1e6
-#define Cycle 100 * Msec
+#define Cycle_interval 100 * Msec
 
 static void each_cycle (int signo) {
-	if (last_time != now++ && touching) {
+	if (mov.until != now++ && touching) {
 		touching = false;
-		printf (": %.2f %.2f %2lld.%1llds\n\n", 
-			total_mov.distance,
-			total_mov.direction / total_mov.distance,
-			 now/10, now%10);
+		printf (": %.2f %.2f %2d.%1ds\n", 
+			mov.distance,
+			mov.direction / mov.distance,
+			now/10, now%10);
+
+		Movement total = movement (mov.start, mov.end);
+		printf ("%4d,%4d -> %4d,%4d, %.2f %.2f\n\n",
+			mov.start.x, mov.start.y,
+			mov.end.x, mov.end.y,
+			total.distance, total.direction
+		);
 	}
 }
 
 static void trace_pointer (Point pos) {
-	last_time = now;
+	mov.until = now;
 
 	if (touching) { 
-		Movement m = movement (pos, last);
-		total_mov = (Movement) {
-			.distance = total_mov.distance + m.distance,
-			.direction = (isnan(m.direction))
-				? total_mov.direction
-				: total_mov.direction +
-					m.distance * m.direction
-		};
+		Movement m = movement (mov.end,pos);
+		mov.distance = mov.distance + m.distance;
+		if (isnan(mov.direction))
+			mov.direction = m.direction * m.distance;
+		else if (!isnan(m.direction))
+			mov.direction = mov.direction + m.distance * m.direction;
 	}
 	else {
-		now = last_time = 0;
-		total_mov = (Movement){.distance=0};
+		now = 0;
+		mov = (Movement){.start=pos};
 		touching = true;
 	}
-	last = pos;
+		
+	mov.end = pos;
 }
 
 int main (int argc, char **argv)
 {
-	if (!set_timer( Cycle, &each_cycle )) {
+	if (!set_timer( Cycle_interval, &each_cycle )) {
 
 		fprintf (stderr, "Unable to register timer.");
 		return 1;
