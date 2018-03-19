@@ -7,7 +7,17 @@
 #include <stdint.h>
 #include <math.h>
 
+bool print_point (Point p) {
+	return printf ("%4d,%4d", p.x, p.y) > 0;
+}
+
+bool nl (void) {
+	return printf ("\n") > 0;
+}
+
 typedef uint_fast16_t Cycle;
+typedef uint_fast16_t uint;
+
 typedef struct {
 	Point	start, end;
 	float	direction, distance;
@@ -25,8 +35,57 @@ Movement movement (Point a, Point b) {
 	};
 }
 
+typedef bool (*ShapeTest) (Movement total, Movement absolute);
+typedef bool (*ShapeAction) (Point p);
+typedef struct {
+	ShapeTest	cond;
+	ShapeAction	act;
+} Shape;
+
+#define Dot_threshold 10.
+#define Min_circle_len 80.
+#define Max_circle_off 50.
+#define Max_circle_direction 0.1
+
+static bool point_test (Movement total, Movement abs) {
+	return total.distance < Dot_threshold;
+}
+
+static bool point_act (Point p) {
+	return printf ("Point at: ") > 0 &&
+		print_point (p) && nl ();
+}
+
+static bool circle_test (Movement total, Movement abs) {
+	return fabsf (total.direction) <= Max_circle_direction &&
+		 total.distance >= Min_circle_len &&
+		 abs.distance <= Max_circle_off;
+}
+
+static bool circle_action (Point p) {
+	return printf ("Circle at: ") &&
+		print_point (p) && nl ();
+}
+
+Shape shapes[] = {
+	{.cond = point_test, .act = point_act},
+	{.cond = circle_test, .act = circle_action}
+};
+#define Shapes_cnt (sizeof(shapes)/sizeof(Shape))
+
+bool do_for_shape (Movement total, Movement abs) {
+	uint i;
+	for (i = 0; i < Shapes_cnt; i++) {
+		if (shapes[i].cond (total, abs)) {
+			shapes[i].act (total.start);
+			break;
+		}
+	}
+	return i < Shapes_cnt;
+}
+
 Cycle		now;
-Movement	mov;
+Movement	total;
 bool		touching;
 
 /*
@@ -47,40 +106,44 @@ bool		touching;
 #define Cycle_interval 100 * Msec
 
 static void each_cycle (int signo) {
-	if (mov.until != now++ && touching) {
+	if (total.until != now++ && touching) {
 		touching = false;
-		printf (": %.2f %.2f %2d.%1ds\n", 
-			mov.distance,
-			mov.direction / mov.distance,
-			now/10, now%10);
+		Movement absolute = movement (total.start, total.end);
+		total.direction /= total.distance;
 
-		Movement total = movement (mov.start, mov.end);
-		printf ("%4d,%4d -> %4d,%4d, %.2f %.2f\n\n",
-			mov.start.x, mov.start.y,
-			mov.end.x, mov.end.y,
-			total.distance, total.direction
-		);
+		if (!do_for_shape (total, absolute)) {
+			printf (": %.2f %.2f %2d.%1ds\n", 
+				total.distance,
+				total.direction,
+				now/10, now%10);
+			printf ("%4d,%4d -> %4d,%4d, %.2f %.2f\n\n",
+				total.start.x, total.start.y,
+				total.end.x, total.end.y,
+				absolute.distance, absolute.direction
+			);
+		}
+		
 	}
 }
 
 static void trace_pointer (Point pos) {
-	mov.until = now;
+	total.until = now;
 
 	if (touching) { 
-		Movement m = movement (mov.end,pos);
-		mov.distance = mov.distance + m.distance;
-		if (isnan(mov.direction))
-			mov.direction = m.direction * m.distance;
+		Movement m = movement (total.end,pos);
+		total.distance = total.distance + m.distance;
+		if (isnan(total.direction))
+			total.direction = m.direction * m.distance;
 		else if (!isnan(m.direction))
-			mov.direction = mov.direction + m.distance * m.direction;
+			total.direction = total.direction + m.distance * m.direction;
 	}
 	else {
 		now = 0;
-		mov = (Movement){.start=pos};
+		total = (Movement){.start=pos};
 		touching = true;
 	}
 		
-	mov.end = pos;
+	total.end = pos;
 }
 
 int main (int argc, char **argv)
