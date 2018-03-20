@@ -35,8 +35,24 @@ Movement movement (Point a, Point b) {
 	};
 }
 
-typedef bool (*ShapeTest) (Movement total, Movement absolute);
-typedef bool (*ShapeAction) (Point p);
+typedef struct {
+	Movement mov;
+	float abs_dist, abs_dir;
+} Touch;
+
+Touch touch (Movement m) {
+	Movement absolute = movement (m.start, m.end);
+	m.direction /= m.distance;
+
+	return (Touch) {
+		.mov = m,
+		.abs_dir = absolute.direction,
+		.abs_dist = absolute.distance
+	};
+}
+	
+typedef bool (*ShapeTest) (Touch);
+typedef bool (*ShapeAction) (Touch);
 typedef struct {
 	ShapeTest	cond;
 	ShapeAction	act;
@@ -47,24 +63,24 @@ typedef struct {
 #define Max_circle_off 50.
 #define Max_circle_direction 0.1
 
-static bool point_test (Movement total, Movement abs) {
-	return total.distance < Dot_threshold;
+static bool point_test (Touch t) {
+	return t.mov.distance < Dot_threshold;
 }
 
-static bool point_act (Point p) {
+static bool point_act (Touch t) {
 	return printf ("Point at: ") > 0 &&
-		print_point (p) && nl ();
+		print_point (t.mov.start) && nl ();
 }
 
-static bool circle_test (Movement total, Movement abs) {
-	return fabsf (total.direction) <= Max_circle_direction &&
-		 total.distance >= Min_circle_len &&
-		 abs.distance <= Max_circle_off;
+static bool circle_test (Touch t) {
+	return fabsf (t.mov.direction) <= Max_circle_direction &&
+		 t.mov.distance >= Min_circle_len &&
+		 t.abs_dist <= Max_circle_off;
 }
 
-static bool circle_action (Point p) {
+static bool circle_action (Touch t) {
 	return printf ("Circle at: ") &&
-		print_point (p) && nl ();
+		print_point (t.mov.start) && nl ();
 }
 
 Shape shapes[] = {
@@ -73,11 +89,11 @@ Shape shapes[] = {
 };
 #define Shapes_cnt (sizeof(shapes)/sizeof(Shape))
 
-bool do_for_shape (Movement total, Movement abs) {
+bool do_for_shape (Touch t) {
 	uint i;
 	for (i = 0; i < Shapes_cnt; i++) {
-		if (shapes[i].cond (total, abs)) {
-			shapes[i].act (total.start);
+		if (shapes[i].cond (t)) {
+			shapes[i].act (t);
 			break;
 		}
 	}
@@ -108,18 +124,17 @@ bool		touching;
 static void each_cycle (int signo) {
 	if (total.until != now++ && touching) {
 		touching = false;
-		Movement absolute = movement (total.start, total.end);
-		total.direction /= total.distance;
+		Touch t = touch (total);
 
-		if (!do_for_shape (total, absolute)) {
+		if (!do_for_shape (t)) {
 			printf (": %.2f %.2f %2d.%1ds\n", 
-				total.distance,
-				total.direction,
+				t.mov.distance,
+				t.mov.direction,
 				now/10, now%10);
 			printf ("%4d,%4d -> %4d,%4d, %.2f %.2f\n\n",
-				total.start.x, total.start.y,
-				total.end.x, total.end.y,
-				absolute.distance, absolute.direction
+				t.mov.start.x, t.mov.start.y,
+				t.mov.end.x, t.mov.end.y,
+				t.abs_dist, t.abs_dir
 			);
 		}
 		
