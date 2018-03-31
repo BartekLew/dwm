@@ -2,8 +2,9 @@
 	shape_test: tring to dump shapes instead of touches
 */
 
-#include "xi.h"
+#include "pointerapp.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -32,10 +33,10 @@ bool		touching;
 /*
 	Except of handling X events we need additional timer
 	to handle a moment when a touch is released because
-	the most accurate interface - XInput inform us only
+	the most accurate interface - XServer inform us only
 	about touched points. We need to adjust the interval
 	for this timer. It must be longer than interval between
-	XInput events, otherwise it would interpret all points
+	events, otherwise it would interpret all points
 	as separate touches. This interval may be cheched
 	using touch_test tool in this repo. On my platform
 	(RPi3) I get ~45-50 events per second so it must be
@@ -60,6 +61,8 @@ static void each_cycle (int signo) {
 			mov.end.x, mov.end.y,
 			total.distance, total.direction
 		);
+		
+		if( now > 50 ) exit(0);
 	}
 }
 
@@ -91,7 +94,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
-	if (!xi2_app (&trace_pointer) ) {
+	if (!pointer_app (&trace_pointer) ) {
 		fprintf (stderr, "Unable to start XInput app.");
 		return 1;
 	}

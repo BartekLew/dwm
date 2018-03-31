@@ -1,6 +1,10 @@
 #!/bin/sh
 
 ver=$1
+wm=$2
+if [ -z "$2" ]; then
+	wm="dwm"
+fi
 
-kill $(ps -A |grep dwm | awk '{print $1;}' )
+kill $(ps -A |grep "$wm" | awk '{print $1;}' )
 $ver &

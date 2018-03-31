@@ -1,5 +1,5 @@
-#ifndef __HEADER_XI
-#define __HEADER_XI
+#ifndef __HEADER_POINTERAPP
+#define __HEADER_POINTERAPP
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -13,7 +13,7 @@ typedef struct {
 } Point;
 typedef void (*X11_pointer_app) (Point p);
 
-bool xi2_app (X11_pointer_app touch_action);
+bool pointer_app (X11_pointer_app touch_action);
 bool set_timer(time_t interval, void(*handler)(int));
 
 #endif

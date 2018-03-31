@@ -3,7 +3,7 @@
 
 include config.mk
 
-all: init_target options bin/dwm bin/touch_test bin/shape_test
+all: init_target options bin/dwm bin/shape_test
 
 
 init_target:
@@ -15,11 +15,8 @@ options:
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
 
-bin/shape_test: o/xi.o o/shape_test.o
+bin/shape_test: o/pointerapp.o o/shape_test.o
 	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt -lm
-
-bin/touch_test: o/xi.o o/touch_test.o
-	${CC} ${CFLAGS} $^ -o $@ -lX11 -lXi -lrt
 
 bin/dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
 	@echo CC -o $@

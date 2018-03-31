@@ -15,6 +15,6 @@ inoremap <c-i>n NULL
 "files to open
 e config.h
 tabe Makefile
-tabe xi.c
-tabe xi.h
+tabe pointerapp.c
+tabe pointerapp.h
 tabe shape_test.c
