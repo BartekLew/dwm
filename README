@@ -6,6 +6,10 @@ THIS FORK is for adapting dwm to touchscreen-only environment. Currently
 it's usefull for keeping windows in order, But no commands when using
 XVkbd as keyboard emulator. Testing machine: RPi/Arch Linux for ARM.
 
+THIS VERSION was a dead end I met during prototyping touch-based interface.
+Movement construct came a little bit wrong way. I've decided to integrate
+with base DWM first. Focus again on doing useful things.
+
 
 Requirements
 ------------
