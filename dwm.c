@@ -174,7 +174,7 @@ static int getrootptr(int *x, int *y);
 static long getstate(Window w);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
-static void grabkeys(void);
+static void listen_keyb_shortcuts(void);
 static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
@@ -949,7 +949,7 @@ grabbuttons(Client *c, int focused)
 }
 
 void
-grabkeys(void)
+listen_keyb_shortcuts(void)
 {
 	updatenumlockmask();
 	{
@@ -1087,7 +1087,7 @@ mappingnotify(XEvent *e)
 
 	XRefreshKeyboardMapping(ev);
 	if (ev->request == MappingKeyboard)
-		grabkeys();
+		listen_keyb_shortcuts();
 }
 
 void
@@ -1532,28 +1532,10 @@ setmfact(const Arg *arg)
 }
 
 void
-setup(void)
+init_X_res(void)
 {
-	int i;
-	XSetWindowAttributes wa;
-	Atom utf8string;
-
-	/* clean up any zombies immediately */
-	sigchld(0);
-
-	/* init screen */
-	screen = DefaultScreen(dpy);
-	sw = DisplayWidth(dpy, screen);
-	sh = DisplayHeight(dpy, screen);
-	root = RootWindow(dpy, screen);
-	drw = drw_create(dpy, screen, root, sw, sh);
-	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
-		die("no fonts could be loaded.");
-	lrpad = drw->fonts->h;
-	bh = drw->fonts->h + 2;
-	updategeom();
-	/* init atoms */
-	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
+	/* Atom in XLib is a value that identify window property. This is instead
+	   of property name string, for better performance. */
 	wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
 	wmatom[WMDelete] = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
 	wmatom[WMState] = XInternAtom(dpy, "WM_STATE", False);
@@ -1567,18 +1549,36 @@ setup(void)
 	netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
-	/* init cursors */
+
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
 	cursor[CurMove] = drw_cur_create(drw, XC_fleur);
-	/* init appearance */
+
+	/* This is color scheme I suppose -- Lew */
 	scheme = ecalloc(LENGTH(colors), sizeof(Clr *));
-	for (i = 0; i < LENGTH(colors); i++)
+	for (int i = 0; i < LENGTH(colors); i++)
 		scheme[i] = drw_scm_create(drw, colors[i], 3);
-	/* init bars */
-	updatebars();
-	updatestatus();
-	/* supporting window for NetWMCheck */
+}
+
+void
+detect_screen(void)
+{
+	screen = DefaultScreen(dpy);
+	sw = DisplayWidth(dpy, screen);
+	sh = DisplayHeight(dpy, screen);
+	root = RootWindow(dpy, screen);
+	drw = drw_create(dpy, screen, root, sw, sh);
+	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
+		die("no fonts could be loaded.");
+	lrpad = drw->fonts->h;
+	bh = drw->fonts->h + 2;
+}
+
+void
+register_as_wm(void)
+{
+	/* Set WM-preasence indicators (so that another WM wouldn't run. */
+	Atom utf8string = XInternAtom(dpy, "UTF8_STRING", False);
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
@@ -1590,14 +1590,34 @@ setup(void)
 	XChangeProperty(dpy, root, netatom[NetSupported], XA_ATOM, 32,
 		PropModeReplace, (unsigned char *) netatom, NetLast);
 	XDeleteProperty(dpy, root, netatom[NetClientList]);
-	/* select events */
-	wa.cursor = cursor[CurNormal]->cursor;
-	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask
-		|ButtonPressMask|PointerMotionMask|EnterWindowMask
-		|LeaveWindowMask|StructureNotifyMask|PropertyChangeMask;
+
+	/* Subscribing interesting events from all Windows: */
+	XSetWindowAttributes wa = {
+		.cursor = cursor[CurNormal]->cursor,
+		.event_mask = SubstructureRedirectMask|SubstructureNotifyMask
+				|ButtonPressMask|PointerMotionMask|EnterWindowMask
+				|LeaveWindowMask|StructureNotifyMask|PropertyChangeMask
+	};
+
 	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
 	XSelectInput(dpy, root, wa.event_mask);
-	grabkeys();
+
+	listen_keyb_shortcuts();
+}
+
+void
+setup(void)
+{
+	sigchld(0); /* clean up any zombies immediately */
+
+	detect_screen();
+	updategeom();
+	init_X_res();
+
+	updatebars();
+	updatestatus();
+	
+	register_as_wm();
 	focus(NULL);
 }
 
