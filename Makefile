@@ -3,8 +3,11 @@
 
 include config.mk
 
-all: options bin/dwm bin/touch_test bin/shape_test
+all: init_target options bin/dwm bin/touch_test bin/shape_test
 
+
+init_target:
+	mkdir -p bin o
 
 options:
 	@echo dwm build options:
@@ -22,14 +25,8 @@ bin/dwm: o/dwm.o o/drw.o o/util.o ${OBJ}
 	@echo CC -o $@
 	@${CC} -o $@ $^ ${LDFLAGS}
 
-bin/:
-	mkdir -p bin
-
 o/%.o: %.c 
 	${CC} ${CFLAGS} -c -o $@ $<
-
-o/:
-	mkdir -p o
 
 ${OBJ}: config.h config.mk
 
