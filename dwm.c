@@ -73,6 +73,7 @@ typedef union {
 	unsigned int ui;
 	float f;
 	const void *v;
+	const char *s;
 } Arg;
 
 typedef struct {
@@ -207,6 +208,7 @@ static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+static void keymap(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *);
@@ -1648,6 +1650,20 @@ spawn(const Arg *arg)
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		fprintf(stderr, "dwm: execvp %s", ((char **)arg->v)[0]);
+		perror(" failed");
+		exit(EXIT_SUCCESS);
+	}
+}
+
+void
+keymap(const Arg *arg)
+{
+	if (fork() == 0) {
+		if (dpy)
+			close(ConnectionNumber(dpy));
+		setsid();
+		execlp("setxkbmap", "setxkbmap", arg->s, (char*) NULL);
+		fprintf(stderr, "dwm: cannot set keymap: %s", arg->s);
 		perror(" failed");
 		exit(EXIT_SUCCESS);
 	}
