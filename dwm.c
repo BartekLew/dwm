@@ -36,6 +36,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
+#include <time.h>
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
@@ -1378,9 +1379,17 @@ run(void)
 	XEvent ev;
 	/* main event loop */
 	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
+    time_t last_up = time(NULL);
+	while (running && !XNextEvent(dpy, &ev)){
+        time_t now = time(NULL);
+        if(now - last_up >= 60) {
+            last_up = now;
+            updatestatus();
+            updatebars();
+        }
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
+    }
 }
 
 void
@@ -2013,8 +2022,8 @@ updatetitle(Client *c)
 void
 updatestatus(void)
 {
-	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		strcpy(stext, "dwm-"VERSION);
+    time_t t = time(NULL);
+    strftime(stext, 255, "%a, %d.%m.%Y %H:%M", localtime(&t));
 	drawbar(selmon);
 }
 
