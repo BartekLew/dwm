@@ -37,6 +37,7 @@
 #include <X11/Xproto.h>
 #include <X11/Xutil.h>
 #include <time.h>
+#include <stdbool.h>
 #ifdef XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
@@ -2019,11 +2020,87 @@ updatetitle(Client *c)
 		strcpy(c->name, broken);
 }
 
+typedef unsigned int uint;
+
+uint months[] = {
+    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
+
+typedef enum {
+    regular, new_year, step_day
+} DayType;
+
+typedef struct{
+    uint    day, month, year;
+    DayType type;
+} Date;
+
+Date myCal(struct tm *dateStruct) {
+    bool beforeNewYear =
+        dateStruct->tm_mon < 8
+        || (dateStruct->tm_mon == 8
+              && dateStruct->tm_mday < 22);
+
+    Date result;
+    // tm_year are years since 1900
+    if(beforeNewYear && dateStruct->tm_year >= 107)
+        result.year = dateStruct->tm_year - 106;
+    else if(beforeNewYear&& dateStruct->tm_year <= 106)
+        result.year = dateStruct->tm_year - 107;
+    else if (dateStruct->tm_year >= 106)
+        result.year = dateStruct->tm_year - 105;
+    else
+        result.year = dateStruct->tm_year - 106;
+
+    uint doy = 0;
+    if(beforeNewYear) {
+        // Jan 1 is already 17.04
+        doy = 3 * 28 + 16;
+
+        for(uint i = 0; i <= dateStruct->tm_mon; i++)
+            doy += months[i];
+
+        if(result.year % 4 && dateStruct->tm_mon > 1)
+            doy++;
+
+        doy += dateStruct->tm_mday;
+    } else if (dateStruct->tm_mon == 8) {
+        doy = dateStruct->tm_mday - 22;
+    } else {
+        doy = 8;
+        for(uint i = 9; i < dateStruct->tm_mon; i++)
+            doy += months[i];
+        doy += dateStruct->tm_mday;
+    }
+    
+    bool isStep = (dateStruct->tm_year % 4) == 0;
+    if(doy == 0)
+        result.type = new_year;
+    else if (isStep && doy == 7*28)
+        result.type = step_day;
+    else {
+        if(isStep && doy > 7*28) doy--;
+        doy--; // skip new year day
+        result.type = regular;
+        result.month = doy/28 + 1;
+        result.day = (doy % 28) + 1;
+    }
+
+    return result;
+}
+
 void
 updatestatus(void)
 {
     time_t t = time(NULL);
-    strftime(stext, 255, "%a, %d.%m.%Y %H:%M", localtime(&t));
+    struct tm* natd = localtime(&t);
+    Date d = myCal(natd);
+    if(d.type == new_year)
+        sprintf(stext, "new year %u %.2u:%.2u", d.year, natd->tm_hour, natd->tm_min);
+    else if (d.type == step_day)
+        sprintf(stext, "step day %u %.2u:%.2u", d.month, natd->tm_hour, natd->tm_min);
+    else 
+        sprintf(stext, "%.2u-%.2u-%.2u %.2u:%.2u", d.year, d.month, d.day, natd->tm_hour, natd->tm_min);
 	drawbar(selmon);
 }
 
