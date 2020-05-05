@@ -2089,18 +2089,96 @@ Date myCal(struct tm *dateStruct) {
     return result;
 }
 
+// StreamSet, meanwhile, execute from BartekLew/box
+typedef struct {
+	int	in,out, err;
+	pid_t	pid;
+} StreamSet;
+
+char piperr[] = "Can't pipe";
+char forkerr[] = "Can't fork";
+
+static StreamSet meanwhile(void (*f)(void*), char **outp) {
+	int input_pipe[2];
+	if(pipe(input_pipe) != 0)
+		*outp = piperr;
+
+	int output_pipe[2];
+	if(pipe(output_pipe) != 0)
+		*outp = piperr;
+
+	int error_pipe[2];
+	if(pipe(error_pipe) != 0)
+		*outp = piperr;
+
+	pid_t prog_pid = fork();
+	if(prog_pid < 0) {
+		*outp = forkerr;
+    } 
+	else if(prog_pid == 0) {
+		close(input_pipe[1]);
+		close(output_pipe[0]);
+		close(error_pipe[0]);
+		dup2(input_pipe[0], STDIN_FILENO);
+		dup2(output_pipe[1], STDOUT_FILENO);
+		dup2(error_pipe[1], STDERR_FILENO);
+
+		f(outp);
+		exit(0);
+	}
+
+	close(input_pipe[0]);
+	close(output_pipe[1]);
+	close(error_pipe[1]);
+
+	return (StreamSet) {
+		.in = input_pipe[1],
+		.out = output_pipe[0],
+		.err = error_pipe[0],
+		.pid = prog_pid
+	};
+}
+
+static void execute(void *_args) {
+	char **args = (char**) _args;
+
+	execvp(args[0], args);
+	fprintf(stderr, "box: cannot run %s\n", args[0]);
+	exit(1);
+}
+
+void bat_query(void *ctx) {
+    execute(&((char*[]){"acpi", NULL}));
+}
+
+
 void
 updatestatus(void)
 {
     time_t t = time(NULL);
     struct tm* natd = localtime(&t);
+
+    char *batstate = NULL;
+    char buff[50];
+    StreamSet ss = meanwhile(&bat_query, &batstate);
+    if(batstate == NULL) {
+        if(read(ss.out, buff, 50) <= 0)
+            read(ss.err, buff, 50);
+        batstate = buff;
+        close(ss.out);
+        close(ss.in);
+        close(ss.err);
+    }
+
     Date d = myCal(natd);
-    if(d.type == new_year)
-        sprintf(stext, "new year %u %.2u:%.2u", d.year, natd->tm_hour, natd->tm_min);
-    else if (d.type == step_day)
-        sprintf(stext, "step day %u %.2u:%.2u", d.month, natd->tm_hour, natd->tm_min);
-    else 
-        sprintf(stext, "%.2u-%.2u-%.2u %.2u:%.2u", d.year, d.month, d.day, natd->tm_hour, natd->tm_min);
+    if(d.type == new_year) {
+        sprintf(stext, "%50s | new year %u %.2u:%.2u", batstate, d.year, natd->tm_hour, natd->tm_min);
+    } else if (d.type == step_day) {
+        sprintf(stext, "%50s | step day %u %.2u:%.2u", batstate, d.month, natd->tm_hour, natd->tm_min);
+    } else { 
+        sprintf(stext, "%50s | %.2u-%.2u-%.2u %.2u:%.2u", batstate, d.year, d.month, d.day, natd->tm_hour, natd->tm_min);
+    }
+
 	drawbar(selmon);
 }
 
