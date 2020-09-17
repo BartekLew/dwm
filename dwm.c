@@ -2117,6 +2117,7 @@ updatestatus(void)
     time_t t = time(NULL);
     struct tm* natd = localtime(&t);
 
+#ifdef CONFIG_13_MON_CAL
     Date d = mon13Cal(natd);
     if(d.type == new_year) {
         sprintf(stext, "%s | new year %u %.2u:%.2u",
@@ -2132,6 +2133,13 @@ updatestatus(void)
             natd->tm_min
         );
     }
+#else
+    sprintf(stext, "%s | %.2u.%.2u.%.2u %.2u:%.2u",
+        console_msg,
+        natd->tm_mday, natd->tm_mon + 1, natd->tm_year+1900,
+        natd->tm_hour, natd->tm_min
+    );
+#endif
 
 	drawbar(selmon);
 }
