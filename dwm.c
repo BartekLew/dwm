@@ -1398,7 +1398,7 @@ run(void)
 
     Console console = init_console (&got_msg);
 
-	while (running && !XNextEvent(dpy, &ev)){
+	while (running) {
         time_t now = time(NULL);
         if(now - last_up >= 60) {
             last_up = now;
@@ -1408,8 +1408,12 @@ run(void)
 
         console_job(&console);
 
-		if (handler[ev.type])
-			handler[ev.type](&ev); /* call handler */
+        while (XPending(dpy)) {
+            XNextEvent(dpy, &ev);
+
+		    if (handler[ev.type])
+			    handler[ev.type](&ev); /* call handler */
+        }
     }
 
     close_console (&console);
