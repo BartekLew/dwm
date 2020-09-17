@@ -45,10 +45,11 @@
 
 #include "drw.h"
 #include "util.h"
+#include "console.h"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
+#define CLEANMASK(mask)         (mask & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
@@ -210,6 +211,9 @@ static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+
+static void ignore(const Arg *arg) {} 
+
 static void keymap(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
@@ -242,6 +246,7 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[256];
+static char console_msg[80];
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 static int bh, blw = 0;      /* bar geometry */
@@ -456,7 +461,8 @@ buttonpress(XEvent *e)
 	}
 	for (i = 0; i < LENGTH(buttons); i++)
 		if (click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
-		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
+		  && (buttons[i].mask? CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state) 
+			 		:CLEANMASK(ev->state) == 0))
 			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
 }
 
@@ -998,7 +1004,7 @@ keypress(XEvent *e)
 	keysym = XKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0);
 	for (i = 0; i < LENGTH(keys); i++)
 		if (keysym == keys[i].keysym
-		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state)
+		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state) 
 		&& keys[i].func)
 			keys[i].func(&(keys[i].arg));
 }
@@ -1374,6 +1380,14 @@ restack(Monitor *m)
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
+void got_msg (char *msg, size_t len) {
+    if (len > 80) len = 80;
+
+    strncpy(console_msg, msg, len);
+    console_msg[len] = 0;
+    updatestatus();
+}
+
 void
 run(void)
 {
@@ -1381,6 +1395,9 @@ run(void)
 	/* main event loop */
 	XSync(dpy, False);
     time_t last_up = time(NULL);
+
+    Console console = init_console (&got_msg);
+
 	while (running && !XNextEvent(dpy, &ev)){
         time_t now = time(NULL);
         if(now - last_up >= 60) {
@@ -1388,9 +1405,14 @@ run(void)
             updatestatus();
             updatebars();
         }
+
+        console_job(&console);
+
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
     }
+
+    close_console (&console);
 }
 
 void
@@ -2035,11 +2057,11 @@ typedef struct{
     DayType type;
 } Date;
 
-Date myCal(struct tm *dateStruct) {
+Date mon13Cal(struct tm *dateStruct) {
     bool beforeNewYear =
         dateStruct->tm_mon < 8
         || (dateStruct->tm_mon == 8
-              && dateStruct->tm_mday < 22);
+              && dateStruct->tm_mday < 21);
 
     Date result;
     // tm_year are years since 1900
@@ -2057,15 +2079,15 @@ Date myCal(struct tm *dateStruct) {
         // Jan 1 is already 17.04
         doy = 3 * 28 + 16;
 
-        for(uint i = 0; i <= dateStruct->tm_mon; i++)
+        for(uint i = 0; i < dateStruct->tm_mon; i++)
             doy += months[i];
 
         if(result.year % 4 && dateStruct->tm_mon > 1)
             doy++;
 
-        doy += dateStruct->tm_mday;
+        doy += dateStruct->tm_mday - 1;
     } else if (dateStruct->tm_mon == 8) {
-        doy = dateStruct->tm_mday - 22;
+        doy = dateStruct->tm_mday - 21;
     } else {
         doy = 8;
         for(uint i = 9; i < dateStruct->tm_mon; i++)
@@ -2089,94 +2111,26 @@ Date myCal(struct tm *dateStruct) {
     return result;
 }
 
-// StreamSet, meanwhile, execute from BartekLew/box
-typedef struct {
-	int	in,out, err;
-	pid_t	pid;
-} StreamSet;
-
-char piperr[] = "Can't pipe";
-char forkerr[] = "Can't fork";
-
-static StreamSet meanwhile(void (*f)(void*), char **outp) {
-	int input_pipe[2];
-	if(pipe(input_pipe) != 0)
-		*outp = piperr;
-
-	int output_pipe[2];
-	if(pipe(output_pipe) != 0)
-		*outp = piperr;
-
-	int error_pipe[2];
-	if(pipe(error_pipe) != 0)
-		*outp = piperr;
-
-	pid_t prog_pid = fork();
-	if(prog_pid < 0) {
-		*outp = forkerr;
-    } 
-	else if(prog_pid == 0) {
-		close(input_pipe[1]);
-		close(output_pipe[0]);
-		close(error_pipe[0]);
-		dup2(input_pipe[0], STDIN_FILENO);
-		dup2(output_pipe[1], STDOUT_FILENO);
-		dup2(error_pipe[1], STDERR_FILENO);
-
-		f(outp);
-		exit(0);
-	}
-
-	close(input_pipe[0]);
-	close(output_pipe[1]);
-	close(error_pipe[1]);
-
-	return (StreamSet) {
-		.in = input_pipe[1],
-		.out = output_pipe[0],
-		.err = error_pipe[0],
-		.pid = prog_pid
-	};
-}
-
-static void execute(void *_args) {
-	char **args = (char**) _args;
-
-	execvp(args[0], args);
-	fprintf(stderr, "box: cannot run %s\n", args[0]);
-	exit(1);
-}
-
-void bat_query(void *ctx) {
-    execute(&((char*[]){"acpi", NULL}));
-}
-
-
 void
 updatestatus(void)
 {
     time_t t = time(NULL);
     struct tm* natd = localtime(&t);
 
-    char *batstate = NULL;
-    char buff[50];
-    StreamSet ss = meanwhile(&bat_query, &batstate);
-    if(batstate == NULL) {
-        if(read(ss.out, buff, 50) <= 0)
-            read(ss.err, buff, 50);
-        batstate = buff;
-        close(ss.out);
-        close(ss.in);
-        close(ss.err);
-    }
-
-    Date d = myCal(natd);
+    Date d = mon13Cal(natd);
     if(d.type == new_year) {
-        sprintf(stext, "%50s | new year %u %.2u:%.2u", batstate, d.year, natd->tm_hour, natd->tm_min);
+        sprintf(stext, "%s | new year %u %.2u:%.2u",
+            console_msg, d.year, natd->tm_hour, natd->tm_min
+        );
     } else if (d.type == step_day) {
-        sprintf(stext, "%50s | step day %u %.2u:%.2u", batstate, d.month, natd->tm_hour, natd->tm_min);
+        sprintf(stext, "%s | step day %u %.2u:%.2u",
+            console_msg, d.month, natd->tm_hour, natd->tm_min
+        );
     } else { 
-        sprintf(stext, "%50s | %.2u-%.2u-%.2u %.2u:%.2u", batstate, d.year, d.month, d.day, natd->tm_hour, natd->tm_min);
+        sprintf(stext, "%s | %.2u-%.2u-%.2u %.2u:%.2u",
+            console_msg, d.year, d.month, d.day, natd->tm_hour,
+            natd->tm_min
+        );
     }
 
 	drawbar(selmon);
