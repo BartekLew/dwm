@@ -2076,16 +2076,17 @@ Date mon13Cal(struct tm *dateStruct) {
 
     uint doy = 0;
     if(beforeNewYear) {
-        // Jan 1 is already 17.04
-        doy = 3 * 28 + 16;
+        // Jan 1 is already 18.04
+        doy = 3 * 28 + 17;
 
         for(uint i = 0; i < dateStruct->tm_mon; i++)
             doy += months[i];
 
-        if(result.year % 4 && dateStruct->tm_mon > 1)
+        //step year
+        if(dateStruct->tm_year % 4 == 0 && dateStruct->tm_mon > 1)
             doy++;
 
-        doy += dateStruct->tm_mday - 1;
+        doy += dateStruct->tm_mday;
     } else if (dateStruct->tm_mon == 8) {
         doy = dateStruct->tm_mday - 21;
     } else {
