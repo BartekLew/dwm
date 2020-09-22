@@ -275,6 +275,7 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
+static Client *lastc;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 
@@ -1388,6 +1389,27 @@ void got_msg (char *msg, size_t len) {
     updatestatus();
 }
 
+void got_cmd (char cmd, int in, int out) {
+    if (cmd == 'l') {
+        char line [300];
+        for (Monitor *m = mons; m; m = m->next) {
+            for (Client *c = m->clients; c; c = c->next) {
+                int l = sprintf(line, "%s\n", c->name);
+                write(out, line, l);
+            }
+        }
+    }
+    if (cmd == '<') {
+        if(lastc) {
+            view(&(const Arg){.ui = lastc->tags});
+            focus(lastc);
+        }
+    }
+    if (cmd == 'f') {
+        setlayout(&(const Arg){.v = &layouts[2]});
+    }
+}
+
 void
 run(void)
 {
@@ -1396,7 +1418,8 @@ run(void)
 	XSync(dpy, False);
     time_t last_up = time(NULL);
 
-    Console console = init_console (&got_msg);
+    Console console = init_console (&got_msg,
+                                    &got_cmd);
 
 	while (running) {
         time_t now = time(NULL);
@@ -2040,6 +2063,7 @@ updatesizehints(Client *c)
 void
 updatetitle(Client *c)
 {
+    lastc = c;
 	if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
 	if (c->name[0] == '\0') /* hack to mark broken clients */
