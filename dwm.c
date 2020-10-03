@@ -1841,6 +1841,10 @@ unmanage(Client *c, int destroyed)
 	Monitor *m = c->mon;
 	XWindowChanges wc;
 
+    if(c == lastc) {
+        lastc = NULL;
+    }
+
 	detach(c);
 	detachstack(c);
 	if (!destroyed) {
