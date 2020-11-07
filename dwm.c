@@ -1381,11 +1381,29 @@ restack(Monitor *m)
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
 }
 
-void got_msg (char *msg, size_t len) {
-    if (len > 80) len = 80;
+void str_roll (char *str, unsigned int n) {
+    while (str[n] > 0) {
+        str[0] = str[n];
+        str++;
+    }
+    str[0] = 0;
+}
 
-    strncpy(console_msg, msg, len);
-    console_msg[len] = 0;
+void got_msg (char *msg, size_t len) {
+    if (len > 79) len = 79;
+
+    size_t cmsg_len = strlen(console_msg);
+    if (cmsg_len + len < 78) {
+        console_msg[cmsg_len] = '|';
+        strncpy(console_msg + cmsg_len + 1, msg, len);
+        console_msg[len+cmsg_len+1] = 0;
+    } else {
+        console_msg[cmsg_len] = '|';
+        str_roll (console_msg, cmsg_len - (78 - len));
+        strncpy(console_msg + (79-len), msg, len);
+        console_msg[79] = 0;
+    }
+
     updatestatus();
 }
 
