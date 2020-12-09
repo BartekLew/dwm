@@ -3,6 +3,9 @@
 /* There is support for 13-month calendar. It can be unlocked with: */
 //#define CONFIG_13_MON_CAL 1
 
+/* Status line max width: */
+#define CONFIG_STATUS_W 50
+
 /* appearance */
 static const unsigned int borderpx  = 1;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */

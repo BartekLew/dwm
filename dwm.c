@@ -246,7 +246,6 @@ static void zoom(const Arg *arg);
 /* variables */
 static const char broken[] = "broken";
 static char stext[256];
-static char console_msg[80];
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 static int bh, blw = 0;      /* bar geometry */
@@ -281,6 +280,8 @@ static Window root, wmcheckwin;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
+
+static char console_msg[CONFIG_STATUS_W];
 
 /* compile-time check if all tags fit into an unsigned int bit array. */
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
@@ -1390,18 +1391,19 @@ void str_roll (char *str, unsigned int n) {
 }
 
 void got_msg (char *msg, size_t len) {
-    if (len > 79) len = 79;
+    int w = CONFIG_STATUS_W;
+    if (len > w-1) len = w-1;
 
     size_t cmsg_len = strlen(console_msg);
-    if (cmsg_len + len < 78) {
+    if (cmsg_len + len < w-2) {
         console_msg[cmsg_len] = '|';
         strncpy(console_msg + cmsg_len + 1, msg, len);
         console_msg[len+cmsg_len+1] = 0;
     } else {
         console_msg[cmsg_len] = '|';
-        str_roll (console_msg, cmsg_len - (78 - len));
-        strncpy(console_msg + (79-len), msg, len);
-        console_msg[79] = 0;
+        str_roll (console_msg, cmsg_len - (w-2 - len));
+        strncpy(console_msg + (w-1-len), msg, len);
+        console_msg[w-1] = 0;
     }
 
     updatestatus();
