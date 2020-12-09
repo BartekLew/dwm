@@ -1409,24 +1409,44 @@ void got_msg (char *msg, size_t len) {
     updatestatus();
 }
 
+typedef struct {
+    char sym;
+    void (*act) (int infd, int outfd);
+} ConsoleCommand;
+
+void ccmd_ls (int in, int out) {
+    char line [300];
+    for (Monitor *m = mons; m; m = m->next) {
+        for (Client *c = m->clients; c; c = c->next) {
+            int l = sprintf(line, "%s\n", c->name);
+            write(out, line, l);
+        }
+    }
+}
+
+void ccmd_focus_last (int in, int out) {
+    if(lastc) {
+        view(&(const Arg){.ui = lastc->tags});
+        focus(lastc);
+    }
+}
+
+void ccmd_fullscreen (int in, int out) {
+    setlayout(&(const Arg){.v = &layouts[2]});
+}
+
+ConsoleCommand cmds[] = {
+    {'l', &ccmd_ls},
+    {'<', &ccmd_focus_last},
+    {'f', &ccmd_fullscreen}
+};
+
 void got_cmd (char cmd, int in, int out) {
-    if (cmd == 'l') {
-        char line [300];
-        for (Monitor *m = mons; m; m = m->next) {
-            for (Client *c = m->clients; c; c = c->next) {
-                int l = sprintf(line, "%s\n", c->name);
-                write(out, line, l);
-            }
+    for(int i = 0; i < sizeof(cmds); i++) {
+        if(cmd == cmds[i].sym) {
+            cmds[i].act(in, out);
+            break;
         }
-    }
-    if (cmd == '<') {
-        if(lastc) {
-            view(&(const Arg){.ui = lastc->tags});
-            focus(lastc);
-        }
-    }
-    if (cmd == 'f') {
-        setlayout(&(const Arg){.v = &layouts[2]});
     }
 }
 
