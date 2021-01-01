@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #define Signal_Handler(Sig, Handler) { \
 	struct sigaction __act = (struct sigaction) { \
@@ -11,6 +12,8 @@
 typedef void (*Action_msg) (char *msg, size_t len);
 typedef void (*Action_cmd) (char cmd, int in, int out);
 
+typedef const char *Cstr;
+
 typedef struct {
     int             in, out, cmd;
     Action_msg      msgact;
@@ -20,3 +23,4 @@ typedef struct {
 Console init_console(Action_msg action, Action_cmd cmdact);
 void console_job(Console *console);
 void close_console(Console *console);
+void console_log(Console *console, Cstr fmt, ...);

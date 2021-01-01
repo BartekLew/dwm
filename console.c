@@ -55,3 +55,16 @@ void console_job (Console *data) {
     }
 }
 
+void console_log(Console *console, Cstr fmt, ...) {
+    char buff[256];
+
+    va_list args;
+    va_start(args, fmt);
+
+    int l = vsnprintf(buff, 256, fmt, args);
+
+    va_end(args);
+
+    write(console->out, buff, l);
+}
+

@@ -274,9 +274,11 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
+static int trace_p = 0;
 static Client *lastc;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
+static Console console;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1416,12 +1418,24 @@ typedef struct {
 
 void ccmd_ls (int in, int out) {
     char line [300];
+    int n = 0;
     for (Monitor *m = mons; m; m = m->next) {
         for (Client *c = m->clients; c; c = c->next) {
-            int l = sprintf(line, "%s\n", c->name);
+            int l = sprintf(line, "%d: %s\n", n, c->name);
             write(out, line, l);
         }
+        n++;
     }
+}
+
+void ccmd_ls_selmon (int in, int out) {
+    for(Client *c = selmon->clients; c; c = c->next) {
+        if(c->tags & 1)
+            c->tags = (c->tags & ~1) | 1<<9;
+    }
+    view(&(const Arg){.ui = 1<<9});
+    arrange(selmon);
+    printf("done!\n");
 }
 
 void ccmd_focus_last (int in, int out) {
@@ -1435,14 +1449,26 @@ void ccmd_fullscreen (int in, int out) {
     setlayout(&(const Arg){.v = &layouts[2]});
 }
 
+void ccmd_trace_on (int in, int out) {
+    trace_p = 1;
+}
+
+void ccmd_trace_off (int in, int out) {
+    trace_p = 0;
+}
+
+
 ConsoleCommand cmds[] = {
     {'l', &ccmd_ls},
+    {'L', &ccmd_ls_selmon},
     {'<', &ccmd_focus_last},
-    {'f', &ccmd_fullscreen}
+    {'f', &ccmd_fullscreen},
+    {'t', &ccmd_trace_on},
+    {'T', &ccmd_trace_off}
 };
 
 void got_cmd (char cmd, int in, int out) {
-    for(int i = 0; i < sizeof(cmds); i++) {
+    for(int i = 0; i < sizeof(cmds)/sizeof(ConsoleCommand); i++) {
         if(cmd == cmds[i].sym) {
             cmds[i].act(in, out);
             break;
@@ -1458,8 +1484,7 @@ run(void)
 	XSync(dpy, False);
     time_t last_up = time(NULL);
 
-    Console console = init_console (&got_msg,
-                                    &got_cmd);
+    console = init_console (&got_msg, &got_cmd);
 
 	while (running) {
         time_t now = time(NULL);
@@ -1883,6 +1908,9 @@ unmanage(Client *c, int destroyed)
 
     if(c == lastc) {
         lastc = NULL;
+        if (trace_p) {
+            console_log(&console, "Deleted: %s(%d)\n", c->name, c->win);
+        }
     }
 
 	detach(c);
@@ -2112,6 +2140,10 @@ updatetitle(Client *c)
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
+
+    if (trace_p) {
+         console_log(&console, "Updated: %s(%d)\n", c->name, c->win);
+    }
 }
 
 typedef unsigned int uint;
