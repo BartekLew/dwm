@@ -212,6 +212,7 @@ static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void gather(const Arg *arg);
+static void choose(const Arg *arg);
 
 static void ignore(const Arg *arg) {} 
 
@@ -1781,6 +1782,19 @@ spawn(const Arg *arg)
 }
 
 void
+newterm(const Arg* arg) {
+    for(Client *c = selmon->clients; c; c = c->next) {
+        if(strstr(c->name,arg->s))
+            c->tags |= 1 << TMPTAG;
+        else
+            c->tags &= ~(1<<TMPTAG);
+    }
+
+    view(&(const Arg){.ui = 1 << TMPTAG});
+    setlayout(&(const Arg){.v = &layouts[0]});
+}
+
+void
 gather(const Arg* arg) {
     for(Client *c = selmon->clients; c; c = c->next) {
         if(strstr(c->name,arg->s))
@@ -1791,6 +1805,95 @@ gather(const Arg* arg) {
 
     view(&(const Arg){.ui = 1 << TMPTAG});
     setlayout(&(const Arg){.v = &layouts[0]});
+
+    choose(NULL);
+}
+
+typedef struct {
+	FILE	*in, *out, *err;
+	pid_t	pid;
+} StreamSet;
+
+static StreamSet meanwhile(void (*f)(void*), void *ctx) {
+	int input_pipe[2];
+	if(pipe(input_pipe) != 0)
+		return (StreamSet){0};
+
+	int output_pipe[2];
+	if(pipe(output_pipe) != 0)
+		return (StreamSet){0};
+
+	int error_pipe[2];
+	if(pipe(error_pipe) != 0)
+	    return (StreamSet){0};	
+
+	pid_t prog_pid = fork();
+	if(prog_pid < 0)
+		return (StreamSet){0};
+
+	else if(prog_pid == 0) {
+		close(input_pipe[1]);
+		close(output_pipe[0]);
+		close(error_pipe[0]);
+		dup2(input_pipe[0], STDIN_FILENO);
+		dup2(output_pipe[1], STDOUT_FILENO);
+		dup2(error_pipe[1], STDERR_FILENO);
+
+		f(ctx);
+		exit(0);
+	}
+
+	close(input_pipe[0]);
+	close(output_pipe[1]);
+	close(error_pipe[1]);
+
+	return (StreamSet){
+		.in = fdopen(input_pipe[1], "w"),
+		.out = fdopen(output_pipe[0], "r"),
+		.err = fdopen(error_pipe[0], "r"),
+		.pid = prog_pid
+	};
+}
+
+static void execute(void *_args) {
+	char **args = (char**) _args;
+
+	execvp(args[0], args);
+	fprintf(stderr, "box: cannot run %s\n", args[0]);
+	exit(1);
+}
+
+static void
+choose(const Arg *arg) {
+    (void) arg;
+    //don't do it if there are no windows to choose
+    if(!selmon->sel) return;
+
+    StreamSet streams = meanwhile(&execute, (char*[]){"dmenu", NULL});
+    if(streams.in == NULL)
+        fprintf(stderr, "error running dmenu");
+
+    int tags = selmon->seltags;
+    for (Client *c = selmon->clients; c; c = c->next) {
+        if((c->tags & tags) == tags) {
+            fprintf(streams.in, "%p %s\n", (void*)c, c->name);
+        }
+    }
+
+    fclose(streams.in);
+
+    Client *c;
+    if(fscanf(streams.out, "%p", (void**)&c) == 1) {
+        if(c) {
+            focus(c);
+            arrange(selmon);
+        }
+    } else {
+        fprintf(stderr, "couldn't read from dmenu");
+    }
+
+    fclose(streams.out);
+    fclose(streams.err);
 }
 
 void
