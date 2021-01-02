@@ -211,6 +211,7 @@ static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
+static void gather(const Arg *arg);
 
 static void ignore(const Arg *arg) {} 
 
@@ -729,7 +730,7 @@ drawbar(Monitor *m)
 			urg |= c->tags;
 	}
 	x = 0;
-	for (i = 0; i < LENGTH(tags); i++) {
+	for (i = 0; i < TMPTAG; i++) {
 		w = TEXTW(tags[i]);
 		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
@@ -1777,6 +1778,19 @@ spawn(const Arg *arg)
 		perror(" failed");
 		exit(EXIT_SUCCESS);
 	}
+}
+
+void
+gather(const Arg* arg) {
+    for(Client *c = selmon->clients; c; c = c->next) {
+        if(strstr(c->name,arg->s))
+            c->tags |= 1 << TMPTAG;
+        else
+            c->tags &= ~(1<<TMPTAG);
+    }
+
+    view(&(const Arg){.ui = 1 << TMPTAG});
+    setlayout(&(const Arg){.v = &layouts[0]});
 }
 
 void
