@@ -1430,16 +1430,6 @@ void ccmd_ls (int in, int out) {
     }
 }
 
-void ccmd_ls_selmon (int in, int out) {
-    for(Client *c = selmon->clients; c; c = c->next) {
-        if(c->tags & 1)
-            c->tags = (c->tags & ~1) | 1<<9;
-    }
-    view(&(const Arg){.ui = 1<<9});
-    arrange(selmon);
-    printf("done!\n");
-}
-
 void ccmd_focus_last (int in, int out) {
     if(lastc) {
         view(&(const Arg){.ui = lastc->tags});
@@ -1462,7 +1452,6 @@ void ccmd_trace_off (int in, int out) {
 
 ConsoleCommand cmds[] = {
     {'l', &ccmd_ls},
-    {'L', &ccmd_ls_selmon},
     {'<', &ccmd_focus_last},
     {'f', &ccmd_fullscreen},
     {'t', &ccmd_trace_on},
