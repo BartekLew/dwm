@@ -2244,6 +2244,18 @@ updatetitle(Client *c)
     lastc = c;
 	if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
+
+    // Emojis seems to be problematic here, let's remove them.
+    for(unsigned char *cur = c->name; *cur != 0; cur++) {
+        if(*cur == 0xf0 && cur[1] == 0x9f) {
+            for(int i = 0; i < 4; i++) {
+                cur++;
+                if(*cur == 0) break;
+                else *cur = '.';
+            }
+        }
+    }
+    
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
 
