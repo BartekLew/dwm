@@ -1,8 +1,7 @@
-
 #include <stdio.h>
+#include <X11/Xlib.h>
 
 typedef struct streams *Streams;
-typedef struct win *Window;
 typedef unsigned char u8;
 
 Streams init_streams();
@@ -28,7 +27,7 @@ int main() {
     printf("%d\n", win2stream(s, w2, "loo"));
     printf("%d\n", win2stream(s, w2, "looloo"));
 
-    key2stream(s, w, 'q');
+    key2stream(s, w2, 'q');
 
     free_streams(s);
 }

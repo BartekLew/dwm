@@ -1,17 +1,16 @@
-
 use std::str;
 use std::slice;
 
-#[repr(C)]
-struct Window {}
+type Window = u64;
+type CStr = *const u8;
 
 extern "C" {
-    fn strlen(cstr: *const u8) -> usize;
-    fn printf(fmt: *const u8, ...) -> usize;
+    fn strlen(cstr: CStr) -> usize;
+    fn printf(fmt: CStr, ...) -> usize;
 }
 
 struct Stream {
-    handle: Option<*const Window>,
+    handle: Option<Window>,
     name: String
 }
 
@@ -24,7 +23,7 @@ impl Stream {
         Stream { handle: None, name: name }
     }
 
-    fn try_window(&mut self, handle: *const Window, name: &String) -> bool {
+    fn try_window(&mut self, handle: Window, name: &String) -> bool {
         if self.handle.is_none() && prefix_eq(&self.name, name) {
             self.handle = Some(handle);
             true
@@ -33,10 +32,10 @@ impl Stream {
         }
     }
 
-    fn try_key(&mut self, handle: *const Window, key: u8) -> bool {
+    fn try_key(&mut self, handle: Window, key: u8) -> bool {
         self.handle.map(|my_handle| {
             if handle == my_handle {
-                unsafe { printf("Hit '%c' for %x\n\0".as_ptr(), key as usize, handle) };
+                unsafe { printf("Hit '%c' for 0x%x\n\0".as_ptr(), key as usize, handle) };
                 true
             } else {
                 false
@@ -58,7 +57,7 @@ impl Streams {
         self.streams.push(Stream::new(prefix));        
     }
 
-    fn try_window(&mut self, handle: *const Window, name: String) -> bool{
+    fn try_window(&mut self, handle: Window, name: String) -> bool{
         for s in self.streams.iter_mut() {
             if s.try_window(handle, &name) {
                 return true;
@@ -68,7 +67,7 @@ impl Streams {
         false
     }
 
-    fn try_key(&mut self, handle: *const Window, key: u8) -> bool {
+    fn try_key(&mut self, handle: Window, key: u8) -> bool {
         for s in self.streams.iter_mut() {
             if s.try_key(handle, key) {
                 return true;
@@ -80,7 +79,7 @@ impl Streams {
 
 }
 
-fn ptr2str(ptr: *const u8) -> String {
+fn ptr2str(ptr: CStr) -> String {
     unsafe {
         String::from(str::from_utf8(slice::from_raw_parts(ptr, strlen(ptr))).unwrap())
     }
@@ -94,18 +93,18 @@ fn init_streams() -> Box<Streams> {
 
 #[no_mangle]
 extern "C"
-fn new_stream(s: &mut Streams, name: *const u8) {
+fn new_stream(s: &mut Streams, name: CStr) {
     s.add(String::from(ptr2str(name)));
 }
 
 #[no_mangle]
 extern "C"
-fn win2stream(s: &mut Streams, handle: *const Window, name: *const u8) -> bool {
+fn win2stream(s: &mut Streams, handle: Window, name: CStr) -> bool {
     s.try_window(handle, ptr2str(name))
 }
 
 #[no_mangle]
-fn key2stream(s: &mut Streams, handle: *const Window, key: u8) {
+fn key2stream(s: &mut Streams, handle: Window, key: u8) {
     s.try_key(handle, key);
 }
 
