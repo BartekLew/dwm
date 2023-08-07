@@ -28,6 +28,11 @@ dwm: ${OBJ}
 	@echo CC -o $@
 	@${CC} -o $@ ${OBJ} ${LDFLAGS}
 
+streamtest:
+	rustc stream.rs --crate-type staticlib
+	gcc test_streams.c libstream.a -o test_streams
+	RUST_BACKTRACE=1 ./test_streams
+
 clean:
 	@echo cleaning
 	@rm -f dwm ${OBJ} dwm-${VERSION}.tar.gz
