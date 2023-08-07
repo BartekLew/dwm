@@ -1,12 +1,21 @@
 use std::str;
 use std::slice;
+use std::ffi::c_void;
 
 type Window = u64;
+type KeySym = u64;
+type Ptr = *const c_void;
 type CStr = *const u8;
+
+const ANY_KEY : i32 = 0;
+const ANY_MODIFIER : u32 = 1 << 15;
+const GRAB_MODE_ASYNC : i32 = 1;
 
 extern "C" {
     fn strlen(cstr: CStr) -> usize;
     fn printf(fmt: CStr, ...) -> usize;
+    fn XGrabKey(dpy: Ptr, key: i32, mods: u32, tgt: Window, owner_events: bool,
+                ptr_mode: i32, key_mode: i32) -> i32;
 }
 
 struct Stream {
@@ -23,16 +32,17 @@ impl Stream {
         Stream { handle: None, name: name }
     }
 
-    fn try_window(&mut self, handle: Window, name: &String) -> bool {
+    fn try_window(&mut self, dpy: Ptr, handle: Window, name: &String) -> bool {
         if self.handle.is_none() && prefix_eq(&self.name, name) {
             self.handle = Some(handle);
+            unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
             true
         } else {
             false
         }
     }
 
-    fn try_key(&mut self, handle: Window, key: u8) -> bool {
+    fn try_key(&mut self, handle: Window, key: KeySym) -> bool {
         self.handle.map(|my_handle| {
             if handle == my_handle {
                 unsafe { printf("Hit '%c' for 0x%x\n\0".as_ptr(), key as usize, handle) };
@@ -45,12 +55,13 @@ impl Stream {
 }
 
 struct Streams {
-    streams: Vec<Stream>
+    streams: Vec<Stream>,
+    dpy: Ptr
 }
 
 impl Streams {
-    fn new() -> Self {
-        Streams { streams: Vec::with_capacity(5) }
+    fn new(dpy: Ptr) -> Self {
+        Streams { streams: Vec::with_capacity(5), dpy: dpy }
     }
 
     fn add(&mut self, prefix: String) {
@@ -59,7 +70,7 @@ impl Streams {
 
     fn try_window(&mut self, handle: Window, name: String) -> bool{
         for s in self.streams.iter_mut() {
-            if s.try_window(handle, &name) {
+            if s.try_window(self.dpy, handle, &name) {
                 return true;
             }
         }
@@ -67,7 +78,7 @@ impl Streams {
         false
     }
 
-    fn try_key(&mut self, handle: Window, key: u8) -> bool {
+    fn try_key(&mut self, handle: Window, key: KeySym) -> bool {
         for s in self.streams.iter_mut() {
             if s.try_key(handle, key) {
                 return true;
@@ -87,8 +98,8 @@ fn ptr2str(ptr: CStr) -> String {
 
 #[no_mangle]
 extern "C"
-fn init_streams() -> Box<Streams> {
-    Box::new(Streams::new())
+fn init_streams(dpy: Ptr) -> Box<Streams> {
+    Box::new(Streams::new(dpy))
 }
 
 #[no_mangle]
@@ -104,9 +115,10 @@ fn win2stream(s: &mut Streams, handle: Window, name: CStr) -> bool {
 }
 
 #[no_mangle]
-fn key2stream(s: &mut Streams, handle: Window, key: u8) {
+fn key2stream(s: &mut Streams, handle: Window, key: KeySym) {
     s.try_key(handle, key);
 }
 
 #[no_mangle]
 fn free_streams(_s: Box<Streams>) {}
+

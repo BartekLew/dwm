@@ -46,6 +46,7 @@
 #include "drw.h"
 #include "util.h"
 #include "console.h"
+#include "stream.h"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -90,7 +91,7 @@ typedef struct {
 typedef struct Monitor Monitor;
 typedef struct Client Client;
 struct Client {
-	char name[256];
+	i8 name[256];
 	float mina, maxa;
 	int x, y, w, h;
 	int oldx, oldy, oldw, oldh;
@@ -281,6 +282,7 @@ static Client *lastc;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 static Console console;
+static Streams ev_streams;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1011,8 +1013,12 @@ keypress(XEvent *e)
 	for (i = 0; i < LENGTH(keys); i++)
 		if (keysym == keys[i].keysym
 		&& CLEANMASK(keys[i].mod) == CLEANMASK(ev->state) 
-		&& keys[i].func)
+		&& keys[i].func) {
 			keys[i].func(&(keys[i].arg));
+            return;
+        }
+        
+    key2stream(ev_streams, ev->window, keysym);
 }
 
 void
@@ -1656,6 +1662,10 @@ setup(void)
 
 	/* init screen */
 	screen = DefaultScreen(dpy);
+
+    ev_streams = init_streams(dpy);
+    new_stream(ev_streams, "R Graphics");
+
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
 	root = RootWindow(dpy, screen);
@@ -2246,7 +2256,7 @@ updatetitle(Client *c)
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
 
     // Emojis seems to be problematic here, let's remove them.
-    for(unsigned char *cur = c->name; *cur != 0; cur++) {
+    for(i8 *cur = c->name; *cur != 0; cur++) {
         if(*cur == 0xf0 && cur[1] == 0x9f) {
             for(int i = 0; i < 4; i++) {
                 cur++;
@@ -2262,6 +2272,8 @@ updatetitle(Client *c)
     if (trace_p) {
          console_log(&console, "Updated: %s(%d)\n", c->name, c->win);
     }
+
+    win2stream(ev_streams, c->win, c->name);
 }
 
 typedef unsigned int uint;
@@ -2509,3 +2521,4 @@ main(int argc, char *argv[])
 	XCloseDisplay(dpy);
 	return EXIT_SUCCESS;
 }
+

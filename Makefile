@@ -15,8 +15,7 @@ options:
 	@echo "CC       = ${CC}"
 
 .c.o:
-	@echo CC $<
-	@${CC} -c ${CFLAGS} $<
+	${CC} -c ${CFLAGS} $<
 
 ${OBJ}: config.h config.mk
 
@@ -24,18 +23,15 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-dwm: ${OBJ}
-	@echo CC -o $@
-	@${CC} -o $@ ${OBJ} ${LDFLAGS}
+dwm: ${OBJ} libstream.a
+	${CC} -o $@ ${OBJ} libstream.a ${LDFLAGS}
 
-streamtest:
-	rustc stream.rs --crate-type staticlib
-	gcc test_streams.c libstream.a -o test_streams
-	RUST_BACKTRACE=1 ./test_streams
+libstream.a: stream.rs
+	rustc stream.rs --crate-type staticlib 2>&1 | ./rustline.pl
 
 clean:
 	@echo cleaning
-	@rm -f dwm ${OBJ} dwm-${VERSION}.tar.gz
+	@rm -f dwm ${OBJ} libstream.a dwm-${VERSION}.tar.gz
 
 dist: clean
 	@echo creating dist tarball
