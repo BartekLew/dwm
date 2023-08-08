@@ -1455,13 +1455,21 @@ void ccmd_trace_off (int in, int out) {
     trace_p = 0;
 }
 
+void ccmd_grab_ev (int in, int out) {
+    char buff[30];
+    int n = read(in, buff, 30);
+    buff[n-1] = 0; 
+
+    new_stream(ev_streams, buff);
+}
 
 ConsoleCommand cmds[] = {
     {'l', &ccmd_ls},
     {'<', &ccmd_focus_last},
     {'f', &ccmd_fullscreen},
     {'t', &ccmd_trace_on},
-    {'T', &ccmd_trace_off}
+    {'T', &ccmd_trace_off},
+    {'g', &ccmd_grab_ev}
 };
 
 void got_cmd (char cmd, int in, int out) {
@@ -1664,8 +1672,6 @@ setup(void)
 	screen = DefaultScreen(dpy);
 
     ev_streams = init_streams(dpy);
-    new_stream(ev_streams, "R Graphics");
-
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
 	root = RootWindow(dpy, screen);
