@@ -281,7 +281,7 @@ static int trace_p = 0;
 static Client *lastc;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
-static Console console;
+Console *console;
 static Streams ev_streams;
 
 /* configuration, allows nested code to access above variables */
@@ -1401,6 +1401,8 @@ void str_roll (char *str, unsigned int n) {
 }
 
 void got_msg (char *msg, size_t len) {
+    len -= 1;
+    
     int w = CONFIG_STATUS_W;
     if (len > w-1) len = w-1;
 
@@ -1421,46 +1423,42 @@ void got_msg (char *msg, size_t len) {
 
 typedef struct {
     char sym;
-    void (*act) (int infd, int outfd);
+    void (*act) (char *pars, size_t len);
 } ConsoleCommand;
 
-void ccmd_ls (int in, int out) {
-    char line [300];
+void ccmd_ls (char *pars, size_t len) {
     int n = 0;
     for (Monitor *m = mons; m; m = m->next) {
         for (Client *c = m->clients; c; c = c->next) {
-            int l = sprintf(line, "%d: %s\n", n, c->name);
-            write(out, line, l);
+            console_log(console, "%d: %s\n", n, c->name);
         }
         n++;
     }
 }
 
-void ccmd_focus_last (int in, int out) {
+void ccmd_focus_last (char *pars, size_t len) {
     if(lastc) {
         view(&(const Arg){.ui = lastc->tags});
         focus(lastc);
     }
 }
 
-void ccmd_fullscreen (int in, int out) {
+void ccmd_fullscreen (char *pars, size_t len) {
     setlayout(&(const Arg){.v = &layouts[2]});
 }
 
-void ccmd_trace_on (int in, int out) {
+void ccmd_trace_on (char *pars, size_t len) {
     trace_p = 1;
 }
 
-void ccmd_trace_off (int in, int out) {
+void ccmd_trace_off (char *pars, size_t len) {
     trace_p = 0;
 }
 
-void ccmd_grab_ev (int in, int out) {
-    char buff[30];
-    int n = read(in, buff, 30);
-    buff[n-1] = 0; 
-
-    new_stream(ev_streams, buff);
+void ccmd_grab_ev (char *pars, size_t len) {
+    pars[len-1] = 0;
+    printf("grab '%s'\n'", pars);
+    new_stream(ev_streams, pars);
 }
 
 ConsoleCommand cmds[] = {
@@ -1472,10 +1470,14 @@ ConsoleCommand cmds[] = {
     {'g', &ccmd_grab_ev}
 };
 
-void got_cmd (char cmd, int in, int out) {
+void got_cmd (char *cmdline, size_t len) {
+    if(len == 0) return;
+
+    cmdline[len-1] = 0;
+    char cmd = cmdline[0];
     for(int i = 0; i < sizeof(cmds)/sizeof(ConsoleCommand); i++) {
         if(cmd == cmds[i].sym) {
-            cmds[i].act(in, out);
+            cmds[i].act(cmdline+1, len-2);
             break;
         }
     }
@@ -1499,7 +1501,7 @@ run(void)
             updatebars();
         }
 
-        console_job(&console);
+        console_job(console);
 
         while (XPending(dpy)) {
             XNextEvent(dpy, &ev);
@@ -1509,7 +1511,7 @@ run(void)
         }
     }
 
-    close_console (&console);
+    close_console (console);
 }
 
 void
@@ -2031,7 +2033,7 @@ unmanage(Client *c, int destroyed)
     if(c == lastc) {
         lastc = NULL;
         if (trace_p) {
-            console_log(&console, "Deleted: %s(%d)\n", c->name, c->win);
+            console_log(console, "Deleted: %s(%d)\n", c->name, c->win);
         }
     }
 
@@ -2276,7 +2278,7 @@ updatetitle(Client *c)
 		strcpy(c->name, broken);
 
     if (trace_p) {
-         console_log(&console, "Updated: %s(%d)\n", c->name, c->win);
+         console_log(console, "Updated: %s(%d)\n", c->name, c->win);
     }
 
     win2stream(ev_streams, c->win, c->name);

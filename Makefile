@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = drw.c dwm.c console.c util.c
+SRC = drw.c dwm.c util.c
 OBJ = ${SRC:.c=.o}
 
 all: options dwm
@@ -23,15 +23,15 @@ config.h:
 	@echo creating $@ from config.def.h
 	@cp config.def.h $@
 
-dwm: ${OBJ} libstream.a
-	${CC} -o $@ ${OBJ} libstream.a ${LDFLAGS}
+dwm: ${OBJ} target/debug/libdwm.a
+	${CC} -o $@ ${OBJ} target/debug/libdwm.a ${LDFLAGS}
 
-libstream.a: stream.rs
-	rustc stream.rs --crate-type staticlib 2>&1 | ./rustline.pl
+target/debug/libdwm.a: src/stream.rs src/console.rs
+	cargo build 2>&1 | ./rustline.pl
 
 clean:
 	@echo cleaning
-	@rm -f dwm ${OBJ} libstream.a dwm-${VERSION}.tar.gz
+	@rm -fr dwm ${OBJ} target dwm-${VERSION}.tar.gz
 
 dist: clean
 	@echo creating dist tarball
