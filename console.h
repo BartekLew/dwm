@@ -9,13 +9,11 @@
 	sigaction(Sig, &__act, 0); \
 }
 
-typedef void (*Action) (char *msg, size_t len);
-
 typedef const char *Cstr;
 
 typedef struct console Console;
 
-Console* init_console(Action action, Action cmdact);
+Console* init_console();
 void console_job(Console *console);
 void close_console(Console *console);
 void console_log(Console *console, Cstr fmt, ...);

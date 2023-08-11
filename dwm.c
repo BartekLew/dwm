@@ -1421,11 +1421,6 @@ void got_msg (char *msg, size_t len) {
     updatestatus();
 }
 
-typedef struct {
-    char sym;
-    void (*act) (char *pars, size_t len);
-} ConsoleCommand;
-
 void ccmd_ls (char *pars, size_t len) {
     int n = 0;
     for (Monitor *m = mons; m; m = m->next) {
@@ -1461,28 +1456,6 @@ void ccmd_grab_ev (char *pars, size_t len) {
     new_stream(ev_streams, pars);
 }
 
-ConsoleCommand cmds[] = {
-    {'l', &ccmd_ls},
-    {'<', &ccmd_focus_last},
-    {'f', &ccmd_fullscreen},
-    {'t', &ccmd_trace_on},
-    {'T', &ccmd_trace_off},
-    {'g', &ccmd_grab_ev}
-};
-
-void got_cmd (char *cmdline, size_t len) {
-    if(len == 0) return;
-
-    cmdline[len-1] = 0;
-    char cmd = cmdline[0];
-    for(int i = 0; i < sizeof(cmds)/sizeof(ConsoleCommand); i++) {
-        if(cmd == cmds[i].sym) {
-            cmds[i].act(cmdline+1, len-2);
-            break;
-        }
-    }
-}
-
 void
 run(void)
 {
@@ -1491,7 +1464,7 @@ run(void)
 	XSync(dpy, False);
     time_t last_up = time(NULL);
 
-    console = init_console (&got_msg, &got_cmd);
+    console = init_console ();
 
 	while (running) {
         time_t now = time(NULL);
