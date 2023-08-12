@@ -1,23 +1,18 @@
 use fdmux::*;
-use va_list::*;
+
+use crate::dwm::*;
+use crate::stream::Streams;
+
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::Error;
+use std::str;
 
 type CStr = *const u8;
 type MCStr = *mut u8;
 
 extern "C" {
-    fn vsnprintf(buff: MCStr, buff_len: usize, fmt: CStr, ...) -> usize;
-
     fn got_msg(buff: MCStr, buff_len: usize);
-
-    fn ccmd_ls(buff: CStr, buff_len: usize);
-    fn ccmd_focus_last(buff: CStr, buff_len: usize);
-    fn ccmd_fullscreen(buff: CStr, buff_len: usize);
-    fn ccmd_trace_on(buff: CStr, buff_len: usize);
-    fn ccmd_trace_off(buff: CStr, buff_len: usize);
-    fn ccmd_grab_ev(buff: CStr, buff_len: usize);
 }
 
 struct BarMessager {}
@@ -38,12 +33,19 @@ impl DoCtrlD for BarMessager {
     }
 }
 
-type DwmHandler = unsafe extern "C" fn(CStr, usize);
-struct DwmCommand {
+#[repr(C)]
+struct WMCtx<'a> {
+    cmdout: NamedWritePipe,
+    ev_streams: &'a mut Streams
+}
+
+type DwmHandler = fn(&[u8], &mut WMCtx);
+struct DwmCommand<'a> {
+    ctx: WMCtx<'a>,
     handlers: HashMap<u8, DwmHandler>
 }
 
-impl Write for DwmCommand {
+impl<'a> Write for DwmCommand<'a> {
     fn write(&mut self, buff: &[u8]) -> Result<usize, Error> {
         let len = buff.len();
         if len == 0 { return Ok(0); }
@@ -51,7 +53,7 @@ impl Write for DwmCommand {
         let cmd = buff[0];
         match self.handlers.contains_key(&cmd) {
             true => {
-                unsafe { (self.handlers[&cmd])(buff[1..len].as_ptr() as *const u8, len-1); }
+                (self.handlers[&cmd])(&buff[1..len], &mut self.ctx);
                 Ok(len)
             },
             false => { Ok(0) }
@@ -63,7 +65,7 @@ impl Write for DwmCommand {
     }
 }
 
-impl DoCtrlD for DwmCommand {
+impl<'a> DoCtrlD for DwmCommand<'a> {
     fn ctrl_d(&mut self) -> bool {
         false
     }
@@ -82,19 +84,22 @@ impl<C:DoCtrlD> DestBuff<C> {
 
 #[repr(C)]
 pub struct Console<'a> {
-    cmd: DestBuff<DwmCommand>,
+    cmd: DestBuff<DwmCommand<'a>>,
     msg: DestBuff<BarMessager>,
-    out: NamedWritePipe,
     top: Topology<'a>
 }
 
 impl<'a> Console<'a> {
-    fn new() -> Box<Self> {
+    fn new(streams: &'a mut Streams) -> Box<Self> {
         let mut ans = Box::new(Console {
             msg: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.in".to_string()).unwrap(),
                             call: BarMessager{} },
             cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
                             call: DwmCommand{
+                                ctx: WMCtx {
+                                    cmdout: NamedWritePipe::new("/tmp/dwm.out".to_string()).unwrap(),
+                                    ev_streams: streams
+                                },
                                 handlers: HashMap::from([
                                     (b'l', ccmd_ls as DwmHandler),
                                     (b'<', ccmd_focus_last as DwmHandler),
@@ -104,7 +109,6 @@ impl<'a> Console<'a> {
                                     (b'g', ccmd_grab_ev as DwmHandler)
                                 ])
                             } },
-            out: NamedWritePipe::new("/tmp/dwm.out".to_string()).unwrap(),
             top: Topology::new(2)
         });
 
@@ -120,8 +124,8 @@ impl<'a> Console<'a> {
 }
 
 #[no_mangle]
-extern "C" fn init_console<'a>() -> Box<Console<'a>> {
-    Console::new()
+extern "C" fn init_console<'a>(streams: &'a mut Streams) -> Box<Console<'a>> {
+    Console::new(streams)
 }
 
 #[no_mangle]
@@ -130,13 +134,60 @@ extern "C" fn console_job(cons: &mut Console) {
 }
 
 #[no_mangle]
-extern "C" fn close_console(_: Box<Topology>) {}
+extern "C" fn close_console(_: Box<Console>) {}
 
-#[no_mangle]
-extern "C" fn console_log(cons: *mut Console, fmt: *const u8, va: VaList) {
-    let buff = [0;256];
-    unsafe {
-        let n = vsnprintf(buff.as_ptr() as MCStr, 256, fmt, va);
-        (*cons).out.write(&buff[0..n]).unwrap();
+fn ccmd_ls(_args: &[u8], ctx: &mut WMCtx) {
+    let mut monn = 0;
+    for mon in Monitors::all() {
+        for client in Clients::all(&mon) {
+            ctx.cmdout.write(&format!("{}: {}\n\0", monn, ptr2str(client.name.as_ptr() as CStr)).as_bytes())
+                   .unwrap();
+        }
+
+        monn += 1;
     }
 }
+
+#[no_mangle]
+extern "C" fn console_log_del(cons: &mut Console, name: CStr, wid: Window) {
+    cons.cmd.call.ctx.cmdout.write(format!("Deleted: {}({})\n\0", ptr2str(name), wid).as_bytes())
+                            .unwrap();
+}
+
+#[no_mangle]
+extern "C" fn console_log_upd(cons: &mut Console, name: CStr, wid: Window) {
+    cons.cmd.call.ctx.cmdout.write(format!("Updated: {}({})\n\0", ptr2str(name), wid).as_bytes())
+                            .unwrap();
+}
+
+fn ccmd_focus_last (_args: &[u8], _ctx: &mut WMCtx) {
+    unsafe {
+        match lastc.as_ref() {
+            Some(c) => {
+                view(&c.tags);
+                focus(lastc);
+            },
+            None => {}
+        }
+    }
+}
+
+fn ccmd_fullscreen (_pars: &[u8], _ctx: &mut WMCtx) {
+    unsafe {
+        setlayout(&mut layouts.offset(2) as *mut *mut Layout);
+    }
+}
+
+fn ccmd_trace_on (_pars: &[u8], _ctx: &mut WMCtx) {
+    unsafe{ trace_p = 1; }
+}
+
+fn ccmd_trace_off (_pars: &[u8], _ctx: &mut WMCtx) {
+    unsafe{ trace_p = 0; }
+}
+
+fn ccmd_grab_ev (pars: &[u8], ctx: &mut WMCtx) {
+    let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
+    ctx.ev_streams.add(s);
+}
+

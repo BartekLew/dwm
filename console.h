@@ -1,6 +1,10 @@
+#ifndef __HAVE_CONSOLE_H
+#define __HAVE_CONSOLE_H 1
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include "stream.h"
 
 #define Signal_Handler(Sig, Handler) { \
 	struct sigaction __act = (struct sigaction) { \
@@ -13,7 +17,9 @@ typedef const char *Cstr;
 
 typedef struct console Console;
 
-Console* init_console();
+Console* init_console(Streams streams);
 void console_job(Console *console);
 void close_console(Console *console);
-void console_log(Console *console, Cstr fmt, ...);
+void console_log_del(Console *console, const char* name, Window id);
+void console_log_upd(Console *console, const char* name, Window id);
+#endif

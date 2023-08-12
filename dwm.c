@@ -171,7 +171,7 @@ static void drawbar(Monitor *m);
 static void drawbars(void);
 static void enternotify(XEvent *e);
 static void expose(XEvent *e);
-static void focus(Client *c);
+void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -192,7 +192,6 @@ static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
-static void quit(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizeclient(Client *c, int x, int y, int w, int h);
@@ -205,7 +204,7 @@ static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
-static void setlayout(const Arg *arg);
+void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
@@ -238,7 +237,7 @@ static void updatestatus(void);
 static void updatewindowtype(Client *c);
 static void updatetitle(Client *c);
 static void updatewmhints(Client *c);
-static void view(const Arg *arg);
+void view(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
@@ -277,12 +276,12 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
-static int trace_p = 0;
-static Client *lastc;
-static Monitor *mons, *selmon;
+int trace_p = 0;
+Client *lastc;
+Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 Console *console;
-static Streams ev_streams;
+Streams ev_streams;
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1268,12 +1267,6 @@ propertynotify(XEvent *e)
 	}
 }
 
-void
-quit(const Arg *arg)
-{
-	running = 0;
-}
-
 Monitor *
 recttomon(int x, int y, int w, int h)
 {
@@ -1421,41 +1414,6 @@ void got_msg (char *msg, size_t len) {
     updatestatus();
 }
 
-void ccmd_ls (char *pars, size_t len) {
-    int n = 0;
-    for (Monitor *m = mons; m; m = m->next) {
-        for (Client *c = m->clients; c; c = c->next) {
-            console_log(console, "%d: %s\n", n, c->name);
-        }
-        n++;
-    }
-}
-
-void ccmd_focus_last (char *pars, size_t len) {
-    if(lastc) {
-        view(&(const Arg){.ui = lastc->tags});
-        focus(lastc);
-    }
-}
-
-void ccmd_fullscreen (char *pars, size_t len) {
-    setlayout(&(const Arg){.v = &layouts[2]});
-}
-
-void ccmd_trace_on (char *pars, size_t len) {
-    trace_p = 1;
-}
-
-void ccmd_trace_off (char *pars, size_t len) {
-    trace_p = 0;
-}
-
-void ccmd_grab_ev (char *pars, size_t len) {
-    pars[len-1] = 0;
-    printf("grab '%s'\n'", pars);
-    new_stream(ev_streams, pars);
-}
-
 void
 run(void)
 {
@@ -1464,7 +1422,7 @@ run(void)
 	XSync(dpy, False);
     time_t last_up = time(NULL);
 
-    console = init_console ();
+    console = init_console (ev_streams);
 
 	while (running) {
         time_t now = time(NULL);
@@ -2006,7 +1964,7 @@ unmanage(Client *c, int destroyed)
     if(c == lastc) {
         lastc = NULL;
         if (trace_p) {
-            console_log(console, "Deleted: %s(%d)\n", c->name, c->win);
+            console_log_del(console, c->name, c->win);
         }
     }
 
@@ -2251,7 +2209,7 @@ updatetitle(Client *c)
 		strcpy(c->name, broken);
 
     if (trace_p) {
-         console_log(console, "Updated: %s(%d)\n", c->name, c->win);
+         console_log_upd(console, c->name, c->win);
     }
 
     win2stream(ev_streams, c->win, c->name);

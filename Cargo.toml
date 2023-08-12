@@ -10,4 +10,3 @@ crate-type = [ 'staticlib' ]
 
 [dependencies]
 fdmux = { path = "/home/lew/code/fdmux" }
-va_list = "0.1.4"

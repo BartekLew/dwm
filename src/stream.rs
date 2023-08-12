@@ -1,22 +1,4 @@
-use std::str;
-use std::slice;
-use std::ffi::c_void;
-
-type Window = u64;
-type KeySym = u64;
-type Ptr = *const c_void;
-type CStr = *const u8;
-
-const ANY_KEY : i32 = 0;
-const ANY_MODIFIER : u32 = 1 << 15;
-const GRAB_MODE_ASYNC : i32 = 1;
-
-extern "C" {
-    fn strlen(cstr: CStr) -> usize;
-    fn printf(fmt: CStr, ...) -> usize;
-    fn XGrabKey(dpy: Ptr, key: i32, mods: u32, tgt: Window, owner_events: bool,
-                ptr_mode: i32, key_mode: i32) -> i32;
-}
+use crate::dwm::*;
 
 struct Stream {
     handle: Option<Window>,
@@ -54,17 +36,17 @@ impl Stream {
     }
 }
 
-struct Streams {
+pub struct Streams {
     streams: Vec<Stream>,
     dpy: Ptr
 }
 
 impl Streams {
-    fn new(dpy: Ptr) -> Self {
+    pub fn new(dpy: Ptr) -> Self {
         Streams { streams: Vec::with_capacity(5), dpy: dpy }
     }
 
-    fn add(&mut self, prefix: String) {
+    pub fn add(&mut self, prefix: String) {
         self.streams.push(Stream::new(prefix));        
     }
 
@@ -88,12 +70,6 @@ impl Streams {
         false
     }
 
-}
-
-fn ptr2str(ptr: CStr) -> String {
-    unsafe {
-        String::from(str::from_utf8(slice::from_raw_parts(ptr, strlen(ptr))).unwrap())
-    }
 }
 
 #[no_mangle]
