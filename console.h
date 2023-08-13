@@ -13,13 +13,12 @@
 	sigaction(Sig, &__act, 0); \
 }
 
-typedef const char *Cstr;
-
 typedef struct console Console;
 
 Console* init_console(Streams streams);
 void console_job(Console *console);
 void close_console(Console *console);
-void console_log_del(Console *console, const char* name, Window id);
-void console_log_upd(Console *console, const char* name, Window id);
+void console_log_del(Console *console, CStr name, Window id);
+void console_log_upd(Console *console, CStr name, Window id);
+void console_out(Console *console, CLenStr name);
 #endif

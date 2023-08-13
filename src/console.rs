@@ -149,6 +149,12 @@ fn ccmd_ls(_args: &[u8], ctx: &mut WMCtx) {
 }
 
 #[no_mangle]
+extern "C" fn console_out(cons: &mut Console, buff: CLenStr) {
+    cons.cmd.call.ctx.cmdout.write(buff.as_slice_ref())
+                            .unwrap();
+}
+
+#[no_mangle]
 extern "C" fn console_log_del(cons: &mut Console, name: CStr, wid: Window) {
     cons.cmd.call.ctx.cmdout.write(format!("Deleted: {}({})\n\0", ptr2str(name), wid).as_bytes())
                             .unwrap();

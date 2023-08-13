@@ -1017,7 +1017,7 @@ keypress(XEvent *e)
             return;
         }
         
-    key2stream(ev_streams, ev->window, keysym);
+    key2stream(ev_streams, ev->window, keysym, ev->state);
 }
 
 void
@@ -1981,6 +1981,7 @@ unmanage(Client *c, int destroyed)
 		XSetErrorHandler(xerror);
 		XUngrabServer(dpy);
 	}
+    end_stream(ev_streams, c->win);
 	free(c);
 	focus(NULL);
 	updateclientlist();
@@ -2212,7 +2213,10 @@ updatetitle(Client *c)
          console_log_upd(console, c->name, c->win);
     }
 
-    win2stream(ev_streams, c->win, c->name);
+    CLenStr fname = win2stream(ev_streams, c->win, c->name);
+    if(fname.buff != NULL) {
+        console_out(console, fname);
+    }
 }
 
 typedef unsigned int uint;
