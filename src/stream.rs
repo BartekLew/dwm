@@ -64,7 +64,7 @@ impl Streams {
     }
 
     pub fn remove(&mut self, handle: Window) {
-        for i in 0..self.streams.len() {
+        for i in (0..self.streams.len()).rev() {
             match &self.streams[i].handle {
                 Some(h) => {
                     if *h == handle {
