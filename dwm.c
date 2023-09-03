@@ -2195,17 +2195,6 @@ updatetitle(Client *c)
 	if (!gettextprop(c->win, netatom[NetWMName], c->name, sizeof c->name))
 		gettextprop(c->win, XA_WM_NAME, c->name, sizeof c->name);
 
-    // Emojis seems to be problematic here, let's remove them.
-    for(i8 *cur = c->name; *cur != 0; cur++) {
-        if(*cur == 0xf0 && cur[1] == 0x9f) {
-            for(int i = 0; i < 4; i++) {
-                cur++;
-                if(*cur == 0) break;
-                else *cur = '.';
-            }
-        }
-    }
-    
 	if (c->name[0] == '\0') /* hack to mark broken clients */
 		strcpy(c->name, broken);
 
@@ -2215,6 +2204,11 @@ updatetitle(Client *c)
 
     CLenStr fname = win2stream(ev_streams, c->win, c->name);
     if(fname.buff != NULL) {
+        char buff[fname.len+1];
+        strncpy(buff, fname.buff, fname.len);
+        buff[fname.len] = '\n';
+        fname.buff = buff;
+        fname.len++;
         console_out(console, fname);
     }
 }
@@ -2401,6 +2395,13 @@ wintomon(Window w)
 int
 xerror(Display *dpy, XErrorEvent *ee)
 {
+    if (ee->request_code == 139 && ee->error_code == BadLength) {
+        fprintf(stderr, "dwm: unable to render window title, "
+                        "probably you haven't font that has all needed "
+                        "characters. Consider installing unifont package\n");
+        return 0;
+    }
+
 	if (ee->error_code == BadWindow
 	|| (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch)
 	|| (ee->request_code == X_PolyText8 && ee->error_code == BadDrawable)
