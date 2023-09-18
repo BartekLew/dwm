@@ -149,7 +149,8 @@ impl<'a> Console<'a> {
             msg: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.in".to_string()).unwrap(),
                             call: BarMessager{} },
             repl: Repl::new(HashMap::from([
-                    ("ls", repl_ls as ReplHandler)
+                    ("ls", repl_ls as ReplHandler),
+                    ("show", repl_show as ReplHandler)
                 ])),
             cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
                             call: DwmCommand{
@@ -208,11 +209,22 @@ fn ccmd_ls<T:Write>(_args: &[u8], ctx: &mut WMCtx<T>) {
 }
 
 fn repl_ls(_args: Vec<&str>) {
-    for mon in Monitors::all() {
-        for client in Clients::all(&mon) {
-            println!("{}: {}", client.win, ptr2str(client.name.as_ptr() as CStr))
-        }
-    }
+    Monitors::all()
+             .for_each(|mon| Clients::all(mon)
+                                     .for_each(|win| println!("{} : {}",
+                                                        win.win, str::from_utf8(&win.name).unwrap())));
+}
+
+fn repl_show(args: Vec<&str>) {
+    let wins = args.iter().flat_map(|arg| match arg.parse::<u64>() {
+                                            Ok(w) => vec![w],
+                                            Err(_) => vec![]
+                                        })
+                          .collect::<Vec<Window>>();
+    Monitors::all()
+             .for_each(|mon| Clients::all(mon)
+                                     .filter(|win| wins.contains(&win.win))
+                                     .for_each(|win| println!("{}", win)));
 }
 
 #[no_mangle]
