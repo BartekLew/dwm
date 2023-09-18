@@ -1797,7 +1797,7 @@ static void execute(void *_args) {
 	char **args = (char**) _args;
 
 	execvp(args[0], args);
-	fprintf(stderr, "box: cannot run %s\n", args[0]);
+	fprintf(stderr, "dwm: cannot run %s\n", args[0]);
 	exit(1);
 }
 

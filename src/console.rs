@@ -33,19 +33,72 @@ impl DoCtrlD for BarMessager {
     }
 }
 
+type ReplHandler = for <'a> fn(args: Vec<&'a str>);
+struct Repl<'a> {
+    input: std::io::Stdin,
+    handlers: HashMap<&'a str, ReplHandler>
+}
+
+impl<'a> Repl<'a> {
+    fn new(handlers: HashMap<&'a str, ReplHandler>) -> Self {
+        Repl::prompt();
+        Repl { input: std::io::stdin(), handlers }
+    }
+
+    fn prompt() {
+        std::io::stdout().write("> ".as_bytes()).unwrap();
+        std::io::stdout().flush().unwrap();
+    }
+}
+
+impl<'a> Write for Repl<'a> {
+    fn write<'b>(&mut self, buff: &'b [u8]) -> Result<usize, Error> {
+        let len = buff.len();
+        if len <= 1 { 
+            Repl::prompt();
+            return Ok(1);
+        }
+
+        let args : Vec<&'b str> =
+                   buff.split(|c| char::from(*c).is_whitespace())
+                       .filter(|s| s.len() > 0)
+                       .map(|s| std::str::from_utf8(s).unwrap())
+                       .collect();
+
+        if self.handlers.contains_key(args[0]) {
+            self.handlers[args[0]](args[1..].to_vec());
+        } else {
+            println!("Unknown command: {}", args[0]);
+        }
+
+        Repl::prompt();
+        Ok(buff.len())
+    }
+
+    fn flush(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<'a> DoCtrlD for Repl<'a> {
+    fn ctrl_d(&mut self) -> bool {
+        false
+    }
+}
+
 #[repr(C)]
-struct WMCtx<'a> {
-    cmdout: NamedWritePipe,
+struct WMCtx<'a, T: Write> {
+    cmdout: T,
     ev_streams: &'a mut Streams
 }
 
-type DwmHandler = fn(&[u8], &mut WMCtx);
-struct DwmCommand<'a> {
-    ctx: WMCtx<'a>,
-    handlers: HashMap<u8, DwmHandler>
+type DwmHandler<T> = fn(&[u8], &mut WMCtx<T>);
+struct DwmCommand<'a, T: Write> {
+    ctx: WMCtx<'a,T>,
+    handlers: HashMap<u8, DwmHandler<T>>
 }
 
-impl<'a> Write for DwmCommand<'a> {
+impl<'a, T:Write> Write for DwmCommand<'a, T> {
     fn write(&mut self, buff: &[u8]) -> Result<usize, Error> {
         let len = buff.len();
         if len == 0 { return Ok(0); }
@@ -65,7 +118,7 @@ impl<'a> Write for DwmCommand<'a> {
     }
 }
 
-impl<'a> DoCtrlD for DwmCommand<'a> {
+impl<'a, T: Write> DoCtrlD for DwmCommand<'a, T> {
     fn ctrl_d(&mut self) -> bool {
         false
     }
@@ -84,8 +137,9 @@ impl<C:DoCtrlD> DestBuff<C> {
 
 #[repr(C)]
 pub struct Console<'a> {
-    cmd: DestBuff<DwmCommand<'a>>,
+    cmd: DestBuff<DwmCommand<'a, NamedWritePipe>>,
     msg: DestBuff<BarMessager>,
+    repl: Repl<'a>,
     top: Topology<'a>
 }
 
@@ -94,6 +148,9 @@ impl<'a> Console<'a> {
         let mut ans = Box::new(Console {
             msg: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.in".to_string()).unwrap(),
                             call: BarMessager{} },
+            repl: Repl::new(HashMap::from([
+                    ("ls", repl_ls as ReplHandler)
+                ])),
             cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
                             call: DwmCommand{
                                 ctx: WMCtx {
@@ -101,22 +158,24 @@ impl<'a> Console<'a> {
                                     ev_streams: streams
                                 },
                                 handlers: HashMap::from([
-                                    (b'l', ccmd_ls as DwmHandler),
-                                    (b'<', ccmd_focus_last as DwmHandler),
-                                    (b'f', ccmd_fullscreen as DwmHandler),
-                                    (b't', ccmd_trace_on as DwmHandler),
-                                    (b'T', ccmd_trace_off as DwmHandler),
-                                    (b'g', ccmd_grab_ev as DwmHandler)
+                                    (b'l', ccmd_ls as DwmHandler<NamedWritePipe>),
+                                    (b'<', ccmd_focus_last as DwmHandler<NamedWritePipe>),
+                                    (b'f', ccmd_fullscreen as DwmHandler<NamedWritePipe>),
+                                    (b't', ccmd_trace_on as DwmHandler<NamedWritePipe>),
+                                    (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
+                                    (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>)
                                 ])
                             } },
-            top: Topology::new(2)
+            top: Topology::new(3)
         });
 
         unsafe {
             let m = &mut ans.msg as *mut DestBuff<BarMessager>;
             ans.top.insert((*m).destination());
-            let c = &mut ans.cmd as *mut DestBuff<DwmCommand>;
+            let c = &mut ans.cmd as *mut DestBuff<DwmCommand<NamedWritePipe>>;
             ans.top.insert((*c).destination());
+            let r = &mut ans.repl as *mut Repl;
+            ans.top.insert(Destination::new(&mut *r, vec![&mut (*r).input]));
 
             ans
         }
@@ -136,7 +195,7 @@ extern "C" fn console_job(cons: &mut Console) {
 #[no_mangle]
 extern "C" fn close_console(_: Box<Console>) {}
 
-fn ccmd_ls(_args: &[u8], ctx: &mut WMCtx) {
+fn ccmd_ls<T:Write>(_args: &[u8], ctx: &mut WMCtx<T>) {
     let mut monn = 0;
     for mon in Monitors::all() {
         for client in Clients::all(&mon) {
@@ -145,6 +204,14 @@ fn ccmd_ls(_args: &[u8], ctx: &mut WMCtx) {
         }
 
         monn += 1;
+    }
+}
+
+fn repl_ls(_args: Vec<&str>) {
+    for mon in Monitors::all() {
+        for client in Clients::all(&mon) {
+            println!("{}: {}", client.win, ptr2str(client.name.as_ptr() as CStr))
+        }
     }
 }
 
@@ -166,7 +233,7 @@ extern "C" fn console_log_upd(cons: &mut Console, name: CStr, wid: Window) {
                             .unwrap();
 }
 
-fn ccmd_focus_last (_args: &[u8], _ctx: &mut WMCtx) {
+fn ccmd_focus_last<T: Write> (_args: &[u8], _ctx: &mut WMCtx<T>) {
     unsafe {
         match lastc.as_ref() {
             Some(c) => {
@@ -178,21 +245,21 @@ fn ccmd_focus_last (_args: &[u8], _ctx: &mut WMCtx) {
     }
 }
 
-fn ccmd_fullscreen (_pars: &[u8], _ctx: &mut WMCtx) {
+fn ccmd_fullscreen<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
     unsafe {
         setlayout(&mut layouts.offset(2) as *mut *mut Layout);
     }
 }
 
-fn ccmd_trace_on (_pars: &[u8], _ctx: &mut WMCtx) {
+fn ccmd_trace_on<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
     unsafe{ trace_p = 1; }
 }
 
-fn ccmd_trace_off (_pars: &[u8], _ctx: &mut WMCtx) {
+fn ccmd_trace_off<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
     unsafe{ trace_p = 0; }
 }
 
-fn ccmd_grab_ev (pars: &[u8], ctx: &mut WMCtx) {
+fn ccmd_grab_ev<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
     let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
     ctx.ev_streams.add(s);
 }
