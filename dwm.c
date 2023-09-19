@@ -2460,6 +2460,11 @@ main(int argc, char *argv[])
 	checkotherwm();
 	setup();
 	scan();
+
+    static char term_title[15];
+    size_t len = snprintf(term_title, 15, "DWM-%lx", (u64) getpid());
+    set_term_title((CLenStr){ term_title, len });
+
 	run();
 	cleanup();
 	XCloseDisplay(dpy);
