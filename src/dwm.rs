@@ -88,9 +88,17 @@ impl Client {
         }
     }
 
-    fn apply_size(&mut self) {
+    fn apply_possize(&mut self) {
         unsafe {
-            resize(self, self.x, self.y, self.w, self.h, 0);
+            if self.visible() {
+                XMoveWindow(dpy, self.win, self.x, self.y);
+                if ((*self.mon).lt[(*self.mon).sellt as usize].arrange as usize == 0
+                    || self.isfloating != 0) && self.isfullscreen == 0 {
+                        resize(self, self.x, self.y, self.w, self.h, 0);
+                }
+            } else {
+                XMoveWindow(dpy, self.win, -2*self.w, 0);
+            }
         }
     }
 
@@ -203,21 +211,11 @@ extern "C" fn set_term_title(title: CLenStr) {
 
 #[no_mangle]
 extern "C" fn showhide(cptr: *mut Client) {
-    Client::from_ptr(cptr)
-           .map(|c| {
-               unsafe {
-                    if c.visible() {
-                        XMoveWindow(dpy, c.win, c.x, c.y);
-                        if ((*c.mon).lt[(*c.mon).sellt as usize].arrange as usize == 0
-                            || c.isfloating != 0) && c.isfullscreen == 0 {
-                                c.apply_size();
-                        }
-                        showhide(c.snext);
-                    } else {
-                        showhide(c.snext);
-                        XMoveWindow(dpy, c.win, -2*c.w, 0);
-                    }
-                }
-            });
+    match Client::from_ptr(cptr) {
+        Some(c) => {
+            c.apply_possize();
+            showhide(c.snext);
+        }, None => ()
+    }
 }
 
