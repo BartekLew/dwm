@@ -58,7 +58,7 @@
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
-#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define TAGMASK                 ((1 << 11) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 #define ColBorder               2
 
@@ -89,7 +89,6 @@ typedef struct {
 } Button;
 
 typedef struct Monitor Monitor;
-typedef struct Client Client;
 struct Client {
 	i8 name[256];
 	float mina, maxa;
@@ -193,7 +192,7 @@ static Client *nexttiled(Client *c);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
 static Monitor *recttomon(int x, int y, int w, int h);
-static void resize(Client *c, int x, int y, int w, int h, int interact);
+void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
@@ -208,7 +207,7 @@ void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
-static void showhide(Client *c);
+void showhide(Client *c);
 static void sigchld(int unused);
 static void spawn(const Arg *arg);
 static void gather(const Arg *arg);
@@ -238,6 +237,7 @@ static void updatewindowtype(Client *c);
 static void updatetitle(Client *c);
 static void updatewmhints(Client *c);
 void view(const Arg *arg);
+void sideview(const Arg *arg);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
@@ -274,7 +274,7 @@ static Atom wmatom[WMLast], netatom[NetLast];
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
-static Display *dpy;
+Display *dpy;
 static Drw *drw;
 int trace_p = 0;
 Client *lastc;
@@ -282,6 +282,9 @@ Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 Console *console;
 Streams ev_streams;
+
+char term_title[15] = {0};
+
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -1053,7 +1056,10 @@ manage(Window w, XWindowAttributes *wa)
 	c->oldbw = wa->border_width;
 
 	updatetitle(c);
-	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
+    if (strcmp(c->name, term_title) == 0) {
+        c->mon = selmon;
+        c->tags = (1<<10);
+    } else if(XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
 		c->mon = t->mon;
 		c->tags = t->tags;
 	} else {
@@ -1675,24 +1681,6 @@ seturgent(Client *c, int urg)
 	wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
 	XSetWMHints(dpy, c->win, wmh);
 	XFree(wmh);
-}
-
-void
-showhide(Client *c)
-{
-	if (!c)
-		return;
-	if (ISVISIBLE(c)) {
-		/* show clients top down */
-		XMoveWindow(dpy, c->win, c->x, c->y);
-		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
-			resize(c, c->x, c->y, c->w, c->h, 0);
-		showhide(c->snext);
-	} else {
-		/* hide clients bottom up */
-		showhide(c->snext);
-		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
-	}
 }
 
 void
@@ -2359,6 +2347,28 @@ view(const Arg *arg)
 	arrange(selmon);
 }
 
+void
+sideview(const Arg *arg)
+{
+    static i32 oldtags = 0;
+
+    if(oldtags != 0) {
+	    selmon->seltags ^= 1; /* toggle sel tagset */
+        selmon->tagset[selmon->seltags] = oldtags;
+        oldtags = 0;
+    } else {
+        if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
+            return;
+        oldtags = selmon->tagset[selmon->seltags];
+        selmon->seltags ^= 1; /* toggle sel tagset */
+        if (arg->ui & TAGMASK)
+            selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+    }
+
+    focus(NULL);
+    arrange(selmon);
+}
+
 Client *
 wintoclient(Window w)
 {
@@ -2458,12 +2468,12 @@ main(int argc, char *argv[])
 	if (!(dpy = XOpenDisplay(NULL)))
 		die("dwm: cannot open display");
 	checkotherwm();
-	setup();
-	scan();
 
-    static char term_title[15];
     size_t len = snprintf(term_title, 15, "DWM-%lx", (u64) getpid());
     set_term_title((CLenStr){ term_title, len });
+
+	setup();
+	scan();
 
 	run();
 	cleanup();

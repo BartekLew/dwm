@@ -21,15 +21,19 @@ extern "C" {
     pub fn XGrabKey(dpy: Ptr, key: i32, mods: u32, tgt: Window, owner_events: bool,
                 ptr_mode: i32, key_mode: i32) -> i32;
 
+    pub fn XMoveWindow(dpy: Ptr, win: Window, x: i32, y: i32);
+
     // dwm:
     pub static mut mons: *mut Monitor;
     pub static mut lastc: *mut Client;
     pub static mut trace_p: i32;
     pub static mut layouts: *mut Layout;
+    pub static dpy : Ptr;
     
     pub fn view(tags: &u32);
     pub fn focus(c: *mut Client);
     pub fn setlayout(l: *mut *mut Layout);
+    pub fn resize(c: *mut Client, x: i32, y:i32, w: i32, h:i32, interact: i32);
 }
 
 #[repr(C)]
@@ -69,12 +73,33 @@ pub struct Client {
     _maxw: i32, _maxh: i32, minw: i32, minh: i32,
 	_bw: i32, _oldbw: i32,
 	pub tags: u32,
-	_isfixed: i32, _isfloating: i32, _isurgent: i32, 
-    _neverfocus: i32, _oldstate: i32, _isfullscreen: i32,
+	_isfixed: i32, isfloating: i32, _isurgent: i32, 
+    _neverfocus: i32, _oldstate: i32, isfullscreen: i32,
 	next: *mut Client,
-	_snext: *const Client,
-	_mon: *const Monitor,
+	snext: *mut Client,
+	mon: *const Monitor,
 	pub win: Window
+}
+
+impl Client {
+    fn visible(&self) -> bool {
+        unsafe {
+            self.tags & (*self.mon).tagset[(*self.mon).seltags as usize] != 0
+        }
+    }
+
+    fn apply_size(&mut self) {
+        unsafe {
+            resize(self, self.x, self.y, self.w, self.h, 0);
+        }
+    }
+
+    fn from_ptr<'a>(c: *mut Client) -> Option<&'a mut Client> {
+        match c as usize {
+            0 => None,
+            _ => Some(unsafe { &mut *c })
+        }
+    }
 }
 
 impl fmt::Display for Client {
@@ -94,9 +119,9 @@ pub struct Monitor {
 	_by: i32,               /* bar geometry */
 	_mx: i32, _my: i32, _mw: i32, _mh: i32,   /* screen size */
 	_wx: i32, _wy: i32, _ww:i32, _wh: i32,   /* window area  */
-	_seltags: u32,
-	_sellt: u32,
-	_tagset: [u32;2],
+	seltags: u32,
+	sellt: u32,
+	tagset: [u32;2],
 	_showbar: i32,
 	_topbar: i32,
 	clients: *mut Client,
@@ -104,13 +129,13 @@ pub struct Monitor {
 	_stack: *const Client,
 	next: *mut Monitor,
 	_barwin: Window,
-	_lt: [Layout; 2]
+	lt: [Layout; 2]
 }
 
 #[repr(C)]
 pub struct Layout {
     _name: *const u8,
-    _arrange: extern "C" fn(*mut Monitor)
+    arrange: extern "C" fn(*mut Monitor)
 }
 
 pub struct Monitors<'a> {
@@ -174,5 +199,25 @@ extern "C" fn set_term_title(title: CLenStr) {
     let mut o = std::io::stdout();
     o.write(format!("\x1b]0;{}\x07", title.as_str()).as_bytes()).unwrap();
     o.flush().unwrap();
+}
+
+#[no_mangle]
+extern "C" fn showhide(cptr: *mut Client) {
+    Client::from_ptr(cptr)
+           .map(|c| {
+               unsafe {
+                    if c.visible() {
+                        XMoveWindow(dpy, c.win, c.x, c.y);
+                        if ((*c.mon).lt[(*c.mon).sellt as usize].arrange as usize == 0
+                            || c.isfloating != 0) && c.isfullscreen == 0 {
+                                c.apply_size();
+                        }
+                        showhide(c.snext);
+                    } else {
+                        showhide(c.snext);
+                        XMoveWindow(dpy, c.win, -2*c.w, 0);
+                    }
+                }
+            });
 }
 

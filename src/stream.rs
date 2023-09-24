@@ -17,9 +17,9 @@ impl Stream {
         Stream { handle: None, output: None, name: name }
     }
 
-    fn try_window(&mut self, dpy: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
+    fn try_window(&mut self, disp: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
         if self.handle.is_none() && prefix_eq(&self.name, name) {
-            unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
+            unsafe { XGrabKey(disp, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
             match NamedWritePipe::new(format!("/tmp/dwm-{}-{}.xev", self.name, handle)) {
                 Ok(pipe) => {
                     let ptr = CLenStr::new(pipe.name.as_bytes());
@@ -55,8 +55,8 @@ pub struct Streams {
 }
 
 impl Streams {
-    pub fn new(dpy: Ptr) -> Self {
-        Streams { streams: Vec::with_capacity(5), dpy: dpy }
+    pub fn new(disp: Ptr) -> Self {
+        Streams { streams: Vec::with_capacity(5), dpy: disp }
     }
 
     pub fn add(&mut self, prefix: String) {
@@ -100,8 +100,8 @@ impl Streams {
 
 #[no_mangle]
 extern "C"
-fn init_streams(dpy: Ptr) -> Box<Streams> {
-    Box::new(Streams::new(dpy))
+fn init_streams(disp: Ptr) -> Box<Streams> {
+    Box::new(Streams::new(disp))
 }
 
 #[no_mangle]
