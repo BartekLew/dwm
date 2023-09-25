@@ -29,11 +29,12 @@ extern "C" {
     pub static mut trace_p: i32;
     pub static mut layouts: *mut Layout;
     pub static dpy : Ptr;
+    pub static selmon : *mut Monitor;
     
-    pub fn view(tags: &u32);
     pub fn focus(c: *mut Client);
     pub fn setlayout(l: *mut *mut Layout);
     pub fn resize(c: *mut Client, x: i32, y:i32, w: i32, h:i32, interact: i32);
+    pub fn arrange(m: *mut Monitor);
 }
 
 #[repr(C)]
@@ -108,6 +109,10 @@ impl Client {
             _ => Some(unsafe { &mut *c })
         }
     }
+
+    fn null() -> *mut Client {
+        0 as *mut Client
+    }
 }
 
 impl fmt::Display for Client {
@@ -138,6 +143,32 @@ pub struct Monitor {
 	next: *mut Monitor,
 	_barwin: Window,
 	lt: [Layout; 2]
+}
+
+impl Monitor {
+    pub fn from_ptr<'a>(ptr: *mut Monitor) -> Option<&'a mut Monitor> {
+        unsafe {
+            match ptr as usize {
+                0 => None,
+                _ => Some(&mut *ptr)
+            }
+        }
+    }
+
+    pub fn view_tags(&mut self, tags: u32) {
+        unsafe {
+            if self.tags() != tags {
+                self.seltags = self.seltags ^ 1;
+                self.tagset[self.seltags as usize] = tags;
+                focus(Client::null());
+                arrange(self);
+            }
+        }
+    }
+
+    pub fn tags(&self) -> u32 {
+        self.tagset[self.seltags as usize]
+    }
 }
 
 #[repr(C)]
@@ -216,6 +247,14 @@ extern "C" fn showhide(cptr: *mut Client) {
             c.apply_possize();
             showhide(c.snext);
         }, None => ()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn view(tags: &u32) {
+    unsafe {
+        Monitor::from_ptr(selmon)
+                .map(|m| m.view_tags(*tags));
     }
 }
 

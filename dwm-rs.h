@@ -3,6 +3,14 @@
 
 typedef struct Client Client;
 
+typedef union {
+	int i;
+	unsigned int ui;
+	float f;
+	const void *v;
+	const char *s;
+} Arg;
+
 // Header for src/dwm.rs
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -19,5 +27,6 @@ typedef struct {
 void set_term_title(CLenStr title);
 
 extern void showhide(Client *c);
+extern void view(const Arg *arg);
 
 #endif
