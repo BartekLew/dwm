@@ -53,7 +53,7 @@
 #define CLEANMASK(mask)         (mask & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
+#define ISVISIBLE(C)            ((C->tags & C->mon->tags))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -116,9 +116,8 @@ struct Monitor {
 	int by;               /* bar geometry */
 	int mx, my, mw, mh;   /* screen size */
 	int wx, wy, ww, wh;   /* window area  */
-	unsigned int seltags;
+    u32 tags;
 	unsigned int sellt;
-	unsigned int tagset[2];
 	int showbar;
 	int topbar;
 	Client *clients;
@@ -319,7 +318,7 @@ applyrules(Client *c)
 		XFree(ch.res_class);
 	if (ch.res_name)
 		XFree(ch.res_name);
-	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
+	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tags;
 }
 
 int
@@ -645,7 +644,7 @@ createmon(void)
 	Monitor *m;
 
 	m = ecalloc(1, sizeof(Monitor));
-	m->tagset[0] = m->tagset[1] = 1;
+	m->tags = 1;
 	m->mfact = mfact;
 	m->nmaster = nmaster;
 	m->showbar = showbar;
@@ -728,7 +727,7 @@ drawbar(Monitor *m)
 	x = 0;
 	for (i = 0; i < TMPTAG; i++) {
 		w = TEXTW(tags[i]);
-		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
+		drw_setscheme(drw, scheme[m->tags & 1 << i ? SchemeSel : SchemeNorm]);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
 		if (occ & 1 << i)
 			drw_rect(drw, x + boxs, boxs, boxw, boxw,
@@ -1478,7 +1477,7 @@ sendmon(Client *c, Monitor *m)
 	detach(c);
 	detachstack(c);
 	c->mon = m;
-	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
+	c->tags = m->tags; /* assign tags of target monitor */
 	attach(c);
 	attachstack(c);
 	focus(NULL);
@@ -1790,7 +1789,7 @@ choose(const Arg *arg) {
     if(streams.in == NULL)
         fprintf(stderr, "error running dmenu");
 
-    int tags = selmon->seltags;
+    int tags = selmon->tags;
     for (Client *c = selmon->clients; c; c = c->next) {
         if((c->tags & tags) == tags) {
             fprintf(streams.in, "%p %s\n", (void*)c, c->name);
@@ -1912,10 +1911,10 @@ toggletag(const Arg *arg)
 void
 toggleview(const Arg *arg)
 {
-	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
+	unsigned int newtagset = selmon->tags ^ (arg->ui & TAGMASK);
 
 	if (newtagset) {
-		selmon->tagset[selmon->seltags] = newtagset;
+		selmon->tags = newtagset;
 		focus(NULL);
 		arrange(selmon);
 	}
@@ -2332,16 +2331,14 @@ sideview(const Arg *arg)
     static i32 oldtags = 0;
 
     if(oldtags != 0) {
-	    selmon->seltags ^= 1; /* toggle sel tagset */
-        selmon->tagset[selmon->seltags] = oldtags;
+        selmon->tags = oldtags;
         oldtags = 0;
     } else {
-        if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
+        if ((arg->ui & TAGMASK) == selmon->tags)
             return;
-        oldtags = selmon->tagset[selmon->seltags];
-        selmon->seltags ^= 1; /* toggle sel tagset */
+        oldtags = selmon->tags;
         if (arg->ui & TAGMASK)
-            selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
+            selmon->tags = arg->ui & TAGMASK;
     }
 
     focus(NULL);

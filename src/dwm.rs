@@ -85,7 +85,7 @@ pub struct Client {
 impl Client {
     fn visible(&self) -> bool {
         unsafe {
-            self.tags & (*self.mon).tagset[(*self.mon).seltags as usize] != 0
+            self.tags & (*self.mon).tags != 0
         }
     }
 
@@ -132,9 +132,8 @@ pub struct Monitor {
 	_by: i32,               /* bar geometry */
 	_mx: i32, _my: i32, _mw: i32, _mh: i32,   /* screen size */
 	_wx: i32, _wy: i32, _ww:i32, _wh: i32,   /* window area  */
-	seltags: u32,
+	tags: u32,
 	sellt: u32,
-	tagset: [u32;2],
 	_showbar: i32,
 	_topbar: i32,
 	clients: *mut Client,
@@ -157,17 +156,12 @@ impl Monitor {
 
     pub fn view_tags(&mut self, tags: u32) {
         unsafe {
-            if self.tags() != tags {
-                self.seltags = self.seltags ^ 1;
-                self.tagset[self.seltags as usize] = tags;
+            if self.tags != tags {
+                self.tags = tags;
                 focus(Client::null());
                 arrange(self);
             }
         }
-    }
-
-    pub fn tags(&self) -> u32 {
-        self.tagset[self.seltags as usize]
     }
 }
 

@@ -14,6 +14,7 @@ typedef union {
 // Header for src/dwm.rs
 typedef unsigned char u8;
 typedef unsigned short u16;
+typedef unsigned int u32;
 typedef char i8;
 typedef unsigned long int u64;
 typedef int i32;
