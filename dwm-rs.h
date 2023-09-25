@@ -2,6 +2,7 @@
 #define __HAVE_DWM_RS_H 1
 
 typedef struct Client Client;
+typedef struct Monitor Monitor;
 
 typedef union {
 	int i;
@@ -29,5 +30,6 @@ void set_term_title(CLenStr title);
 
 extern void showhide(Client *c);
 extern void view(const Arg *arg);
+extern void arrange(Monitor *m);
 
 #endif

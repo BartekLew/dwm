@@ -34,7 +34,8 @@ extern "C" {
     pub fn focus(c: *mut Client);
     pub fn setlayout(l: *mut *mut Layout);
     pub fn resize(c: *mut Client, x: i32, y:i32, w: i32, h:i32, interact: i32);
-    pub fn arrange(m: *mut Monitor);
+    pub fn arrangemon(m: *mut Monitor);
+    pub fn restack(m: *mut Monitor);
 }
 
 #[repr(C)]
@@ -138,7 +139,7 @@ pub struct Monitor {
 	_topbar: i32,
 	clients: *mut Client,
 	_sel: *const Client,
-	_stack: *const Client,
+	stack: *mut Client,
 	next: *mut Monitor,
 	_barwin: Window,
 	lt: [Layout; 2]
@@ -159,8 +160,16 @@ impl Monitor {
             if self.tags != tags {
                 self.tags = tags;
                 focus(Client::null());
-                arrange(self);
+                self.arrange();
             }
+        }
+    }
+
+    pub fn arrange(&mut self) {
+        unsafe {
+            showhide(self.stack);
+            arrangemon(self as *mut Monitor);
+            restack(self as *mut Monitor);
         }
     }
 }
@@ -178,6 +187,24 @@ pub struct Monitors<'a> {
 impl<'a> Monitors<'a> {
     pub fn new(val: *mut Monitor) -> Self { Monitors { cur: unsafe { val.as_ref() } } }
     pub fn all() -> Self { unsafe { Self::new(mons) } }
+
+    pub fn modify_all<F>(act: F) where F: Fn(&mut Monitor) {
+        let mut c = Monitor::from_ptr(unsafe {mons});
+        while c.is_some() {
+            let m = c.unwrap();
+            act(m);
+            c = Monitor::from_ptr(m.next);
+        }
+    }
+
+    pub fn arrange() {
+        unsafe {
+            Monitors::modify_all(|mon| {
+                        showhide(mon.stack);
+                        arrangemon(mon);
+                    });
+        }
+    }
 }
 
 impl <'a> Iterator for Monitors <'a> {
@@ -252,3 +279,10 @@ pub extern "C" fn view(tags: &u32) {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn arrange(mptr: *mut Monitor) {
+    match Monitor::from_ptr(mptr) {
+        Some(mon) => mon.arrange(),
+        None => Monitors::arrange()
+    }
+}
