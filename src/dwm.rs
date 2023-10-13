@@ -3,19 +3,26 @@ use std::str;
 use std::slice;
 use std::fmt;
 use std::io::Write;
+use fdmux::*;
 
 pub type Window = u64;
 pub type KeySym = u64;
 pub type Ptr = *const c_void;
 pub type CStr = *const u8;
+pub type Time = u64;
 
 pub const ANY_KEY : i32 = 0;
 pub const ANY_MODIFIER : u32 = 1 << 15;
 pub const GRAB_MODE_ASYNC : i32 = 1;
 
+pub fn null() -> Ptr {
+    0 as Ptr
+}
+
 extern "C" {
     // libc:
     pub fn strlen(cstr: CStr) -> usize;
+    pub fn time(dst: Ptr) -> Time;
 
     // xlib:
     pub fn XGrabKey(dpy: Ptr, key: i32, mods: u32, tgt: Window, owner_events: bool,
@@ -286,3 +293,13 @@ pub extern "C" fn arrange(mptr: *mut Monitor) {
         None => Monitors::arrange()
     }
 }
+
+#[no_mangle]
+pub extern "C" fn screenshot(_: u64) {
+    Process::new(vec!["import", "-window", "root"])
+           .push_arg(format!("/tmp/screen-{:#x}.jpg\0", unsafe{time(null())}))
+           .spawn()
+           .map(|p| p.wait())
+           .unwrap_or(-1);
+}
+

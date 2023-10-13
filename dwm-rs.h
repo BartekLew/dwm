@@ -32,4 +32,6 @@ extern void showhide(Client *c);
 extern void view(const Arg *arg);
 extern void arrange(Monitor *m);
 
+extern void screenshot(const Arg *_unused);
+
 #endif
