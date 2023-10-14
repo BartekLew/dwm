@@ -2,9 +2,12 @@ use crate::dwm::*;
 use fdmux::*;
 use std::io::Write;
 
+pub enum StreamType { Trace, Grab }
+
 struct Stream {
     handle: Option<Window>,
     output: Option<NamedWritePipe>,
+    typ: StreamType,
     name: String
 }
 
@@ -13,8 +16,13 @@ fn prefix_eq(prefix: &String, s: &String) -> bool {
 }
 
 impl Stream {
-    fn new(name: String) -> Self {
-        Stream { handle: None, output: None, name: name }
+    fn new_grab(name: String) -> Self {
+        Stream { handle: None, typ: StreamType::Grab, output: None, name: name }
+    }
+
+    fn new_trace(name:String, handle: Window) -> Self {
+        unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
+        Stream { handle: Some(handle), name, typ: StreamType::Trace, output: None }
     }
 
     fn try_window(&mut self, disp: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
@@ -33,13 +41,26 @@ impl Stream {
         }
     }
 
-    fn try_key(&mut self, handle: Window, key: KeySym, modkeys: u16) -> bool {
+    fn try_key(&mut self, ev: &XKeyEvent, key: KeySym) -> bool {
         self.handle.map(|my_handle| {
-            if handle == my_handle {
+            if ev.window == my_handle {
                 match &mut self.output {
-                    Some(o) => {o.write(format!("key:{:x}/{:x}\n\0", key, modkeys).as_bytes()).unwrap();},
-                    None => {}
+                    Some(o) => {
+                        o.write(format!("key:{:x}/{:x}\n\0", key, ev.state).as_bytes()).unwrap();
+                    },
+                    None => {
+                        println!("key:{:x}/{:x} @ {:#x}", key, ev.state, ev.window);
+                    }
                 };
+
+                match self.typ {
+                    StreamType::Trace => {
+                        unsafe {
+                            XSendEvent(dpy, ev.window, false, 3, ev);
+                        }
+                    },
+                    _ => {}
+                }
 
                 true
             } else {
@@ -59,8 +80,12 @@ impl Streams {
         Streams { streams: Vec::with_capacity(5), dpy: disp }
     }
 
-    pub fn add(&mut self, prefix: String) {
-        self.streams.push(Stream::new(prefix));        
+    pub fn add_grab(&mut self, prefix: String) {
+        self.streams.push(Stream::new_grab(prefix));        
+    }
+
+    pub fn add_trace(&mut self, client: &Client) {
+        self.streams.push(Stream::new_trace(client.name_str(), client.win));
     }
 
     pub fn remove(&mut self, handle: Window) {
@@ -86,9 +111,9 @@ impl Streams {
         None
     }
 
-    fn try_key(&mut self, handle: Window, key: KeySym, modkeys: u16) -> bool {
+    fn try_key(&mut self, ev: &XKeyEvent, key: KeySym) -> bool {
         for s in self.streams.iter_mut() {
-            if s.try_key(handle, key, modkeys) {
+            if s.try_key(ev, key) {
                 return true;
             }
         }
@@ -105,12 +130,6 @@ fn init_streams(disp: Ptr) -> Box<Streams> {
 }
 
 #[no_mangle]
-extern "C"
-fn new_stream(s: &mut Streams, name: CStr) {
-    s.add(String::from(ptr2str(name)));
-}
-
-#[no_mangle]
 fn end_stream(s: &mut Streams, handle: Window) {
     s.remove(handle);
 }
@@ -123,8 +142,8 @@ fn win2stream(s: &mut Streams, handle: Window, name: CStr) -> CLenStr {
 }
 
 #[no_mangle]
-fn key2stream(s: &mut Streams, handle: Window, key: KeySym, modkeys: u16) {
-    s.try_key(handle, key, modkeys);
+fn key2stream(s: &mut Streams, ev: &XKeyEvent, key: KeySym) {
+    s.try_key(ev, key);
 }
 
 #[no_mangle]

@@ -12,7 +12,7 @@ Streams init_streams(Display *dpy);
 void new_stream(Streams s, CStr name);
 void end_stream(Streams s, Window win);
 CLenStr win2stream(Streams s, Window win, CStr name);
-void key2stream(Streams s, Window win, u16 key, u16 modkeys);
+void key2stream(Streams s, XKeyEvent *ev, u16 key);
 void free_streams(Streams s);
 
 #endif

@@ -994,7 +994,7 @@ keypress(XEvent *e)
             return;
         }
         
-    key2stream(ev_streams, ev->window, keysym, ev->state);
+    key2stream(ev_streams, ev, keysym);
 }
 
 void

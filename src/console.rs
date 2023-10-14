@@ -1,7 +1,7 @@
 use fdmux::*;
 
 use crate::dwm::*;
-use crate::stream::Streams;
+use crate::stream::*;
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -215,6 +215,18 @@ fn repl_ls(_args: Vec<&str>) {
                                                         win.win, str::from_utf8(&win.name).unwrap())));
 }
 
+fn for_client_args<F: FnMut(&Client)>(args: Vec<&str>, mut act: F) {
+    let wins = args.iter().flat_map(|arg| match arg.parse::<u64>() {
+                                            Ok(w) => vec![w],
+                                            Err(_) => vec![]
+                                        })
+                          .collect::<Vec<Window>>();
+    Monitors::all()
+             .for_each(|mon| Clients::all(mon)
+                                     .filter(|win| wins.contains(&win.win))
+                                     .for_each(|c| act(c)));
+}
+
 fn repl_show(args: Vec<&str>) {
     let wins = args.iter().flat_map(|arg| match arg.parse::<u64>() {
                                             Ok(w) => vec![w],
@@ -225,6 +237,10 @@ fn repl_show(args: Vec<&str>) {
              .for_each(|mon| Clients::all(mon)
                                      .filter(|win| wins.contains(&win.win))
                                      .for_each(|win| println!("{}", win)));
+}
+
+fn repl_trace(streams: &mut Streams, args: Vec<&str>) {
+    for_client_args(args, |client| streams.add_trace(client));
 }
 
 #[no_mangle]
@@ -273,6 +289,6 @@ fn ccmd_trace_off<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
 
 fn ccmd_grab_ev<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
     let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
-    ctx.ev_streams.add(s);
+    ctx.ev_streams.add_grab(s);
 }
 

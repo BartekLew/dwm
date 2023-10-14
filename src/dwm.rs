@@ -19,6 +19,22 @@ pub fn null() -> Ptr {
     0 as Ptr
 }
 
+#[repr(C)]
+pub struct XKeyEvent {
+    _type: i64,
+    _serial: u64,
+    _send_event: i64,
+    _dsp: Ptr,
+    pub window: Window, //offset 32
+    _root: Window,
+    _subwindow: Window,
+    _time: Time,
+    _x: i32, _y: i32,
+    _x_root: i32, _y_root: i32,
+    pub state: u32, _keycode: u32,
+    _same_screen: bool
+}
+
 extern "C" {
     // libc:
     pub fn strlen(cstr: CStr) -> usize;
@@ -29,6 +45,7 @@ extern "C" {
                 ptr_mode: i32, key_mode: i32) -> i32;
 
     pub fn XMoveWindow(dpy: Ptr, win: Window, x: i32, y: i32);
+    pub fn XSendEvent(dpy: Ptr, win: Window, propagate: bool, evmask: u64, ev: &XKeyEvent);
 
     // dwm:
     pub static mut mons: *mut Monitor;
@@ -120,6 +137,10 @@ impl Client {
 
     fn null() -> *mut Client {
         0 as *mut Client
+    }
+
+    pub fn name_str(&self) -> String {
+        String::from(str::from_utf8(&self.name).unwrap())
     }
 }
 
