@@ -211,7 +211,7 @@ fn ccmd_ls<T:Write>(_args: &[u8], ctx: &mut WMCtx<T>) {
 fn repl_ls(_args: Vec<&str>) {
     Monitors::all()
              .for_each(|mon| Clients::all(mon)
-                                     .for_each(|win| println!("{} : {}",
+                                     .for_each(|win| println!("{:#x} : {}",
                                                         win.win, str::from_utf8(&win.name).unwrap())));
 }
 

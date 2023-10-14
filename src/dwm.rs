@@ -125,7 +125,7 @@ impl Client {
 
 impl fmt::Display for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "#{}: {}x{}@{}:{}({})\n  {}",
+        write!(f, "#{:#x}: {}x{}@{}:{}({})\n  {}",
                self.win, self.w, self.h, self.x, self.y, self.tags,
                str::from_utf8(&self.name).unwrap())
     }
