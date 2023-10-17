@@ -232,15 +232,7 @@ fn for_client_args<F: FnMut(&Client)>(args: Vec<&str>, mut act: F) {
 }
 
 fn repl_show(_streams: &mut Streams, args: Vec<&str>) {
-    let wins = args.iter().flat_map(|arg| match u64::from_str_radix(arg,16) {
-                                            Ok(w) => vec![w],
-                                            Err(_) => vec![]
-                                        })
-                          .collect::<Vec<Window>>();
-    Monitors::all()
-             .for_each(|mon| Clients::all(mon)
-                                     .filter(|win| wins.contains(&win.win))
-                                     .for_each(|win| println!("{}", win)));
+    for_client_args(args, |client| println!("{}", client));
 }
 
 fn repl_trace(streams: &mut Streams, args: Vec<&str>) {
