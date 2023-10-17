@@ -235,8 +235,12 @@ fn repl_show(_streams: &mut Streams, args: Vec<&str>) {
     for_client_args(args, |client| println!("{}", client));
 }
 
+fn print_key_event(key: u64, ev: &XKeyEvent) {
+    println!("key:{:x}/{:x} @ {:#x}", key, ev.state, ev.window);
+}
+
 fn repl_trace(streams: &mut Streams, args: Vec<&str>) {
-    for_client_args(args, |client| streams.add_trace(client));
+    for_client_args(args, |client| streams.add_trace(client, print_key_event));
 }
 
 #[no_mangle]

@@ -2,7 +2,8 @@ use crate::dwm::*;
 use fdmux::*;
 use std::io::Write;
 
-pub enum StreamType { Trace, Grab }
+type TraceHandler = fn(key: KeySym, event: &XKeyEvent);
+pub enum StreamType { Trace(TraceHandler), Grab }
 
 struct Stream {
     handle: Option<Window>,
@@ -20,9 +21,9 @@ impl Stream {
         Stream { handle: None, typ: StreamType::Grab, output: None, name: name }
     }
 
-    fn new_trace(name:String, handle: Window) -> Self {
+    fn new_trace(name:String, handle: Window, handler: TraceHandler) -> Self {
         unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_SYNC, GRAB_MODE_SYNC) };
-        Stream { handle: Some(handle), name, typ: StreamType::Trace, output: None }
+        Stream { handle: Some(handle), name, typ: StreamType::Trace(handler), output: None }
     }
 
     fn try_window(&mut self, disp: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
@@ -48,14 +49,13 @@ impl Stream {
                     Some(o) => {
                         o.write(format!("key:{:x}/{:x}\n\0", key, ev.state).as_bytes()).unwrap();
                     },
-                    None => {
-                        println!("key:{:x}/{:x} @ {:#x}", key, ev.state, ev.window);
-                    }
+                    None => {}
                 };
 
                 match self.typ {
-                    StreamType::Trace => {
+                    StreamType::Trace(handler) => {
                         unsafe {
+                            handler(key, ev);
                             XAllowEvents(dpy, 5, ev.time);// ReplayKeyboard
                             XFlush(dpy);
                         }
@@ -85,8 +85,8 @@ impl Streams {
         self.streams.push(Stream::new_grab(prefix));        
     }
 
-    pub fn add_trace(&mut self, client: &Client) {
-        self.streams.push(Stream::new_trace(client.name_str(), client.win));
+    pub fn add_trace(&mut self, client: &Client, handler: TraceHandler) {
+        self.streams.push(Stream::new_trace(client.name_str(), client.win, handler));
     }
 
     pub fn remove(&mut self, handle: Window) {
