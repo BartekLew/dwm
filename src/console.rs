@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::io::Error;
 use std::str;
+use std::u64;
 
 type CStr = *const u8;
 type MCStr = *mut u8;
@@ -33,16 +34,17 @@ impl DoCtrlD for BarMessager {
     }
 }
 
-type ReplHandler = for <'a> fn(args: Vec<&'a str>);
+type ReplHandler = for <'a> fn(streams: &mut Streams, args: Vec<&'a str>);
 struct Repl<'a> {
     input: std::io::Stdin,
-    handlers: HashMap<&'a str, ReplHandler>
+    handlers: HashMap<&'a str, ReplHandler>,
+    streams: &'a mut Streams
 }
 
 impl<'a> Repl<'a> {
-    fn new(handlers: HashMap<&'a str, ReplHandler>) -> Self {
+    fn new(streams: &'a mut Streams, handlers: HashMap<&'a str, ReplHandler>) -> Self {
         Repl::prompt();
-        Repl { input: std::io::stdin(), handlers }
+        Repl { input: std::io::stdin(), handlers, streams }
     }
 
     fn prompt() {
@@ -66,7 +68,7 @@ impl<'a> Write for Repl<'a> {
                        .collect();
 
         if self.handlers.contains_key(args[0]) {
-            self.handlers[args[0]](args[1..].to_vec());
+            self.handlers[args[0]](self.streams, args[1..].to_vec());
         } else {
             println!("Unknown command: {}", args[0]);
         }
@@ -145,32 +147,34 @@ pub struct Console<'a> {
 
 impl<'a> Console<'a> {
     fn new(streams: &'a mut Streams) -> Box<Self> {
-        let mut ans = Box::new(Console {
-            msg: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.in".to_string()).unwrap(),
-                            call: BarMessager{} },
-            repl: Repl::new(HashMap::from([
-                    ("ls", repl_ls as ReplHandler),
-                    ("show", repl_show as ReplHandler)
-                ])),
-            cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
-                            call: DwmCommand{
-                                ctx: WMCtx {
-                                    cmdout: NamedWritePipe::new("/tmp/dwm.out".to_string()).unwrap(),
-                                    ev_streams: streams
-                                },
-                                handlers: HashMap::from([
-                                    (b'l', ccmd_ls as DwmHandler<NamedWritePipe>),
-                                    (b'<', ccmd_focus_last as DwmHandler<NamedWritePipe>),
-                                    (b'f', ccmd_fullscreen as DwmHandler<NamedWritePipe>),
-                                    (b't', ccmd_trace_on as DwmHandler<NamedWritePipe>),
-                                    (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
-                                    (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>)
-                                ])
-                            } },
-            top: Topology::new(3)
-        });
-
         unsafe {
+            let streams_ptr = streams as *mut Streams;
+            let mut ans = Box::new(Console {
+                msg: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.in".to_string()).unwrap(),
+                                call: BarMessager{} },
+                repl: Repl::new(&mut *streams_ptr, HashMap::from([
+                        ("ls", repl_ls as ReplHandler),
+                        ("show", repl_show as ReplHandler),
+                        ("trace", repl_trace as ReplHandler)
+                    ])),
+                cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
+                                call: DwmCommand{
+                                    ctx: WMCtx {
+                                        cmdout: NamedWritePipe::new("/tmp/dwm.out".to_string()).unwrap(),
+                                        ev_streams: &mut *streams_ptr
+                                    },
+                                    handlers: HashMap::from([
+                                        (b'l', ccmd_ls as DwmHandler<NamedWritePipe>),
+                                        (b'<', ccmd_focus_last as DwmHandler<NamedWritePipe>),
+                                        (b'f', ccmd_fullscreen as DwmHandler<NamedWritePipe>),
+                                        (b't', ccmd_trace_on as DwmHandler<NamedWritePipe>),
+                                        (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
+                                        (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>)
+                                    ])
+                                } },
+                top: Topology::new(3)
+            });
+
             let m = &mut ans.msg as *mut DestBuff<BarMessager>;
             ans.top.insert((*m).destination());
             let c = &mut ans.cmd as *mut DestBuff<DwmCommand<NamedWritePipe>>;
@@ -208,7 +212,7 @@ fn ccmd_ls<T:Write>(_args: &[u8], ctx: &mut WMCtx<T>) {
     }
 }
 
-fn repl_ls(_args: Vec<&str>) {
+fn repl_ls(_streams: &mut Streams,_args: Vec<&str>) {
     Monitors::all()
              .for_each(|mon| Clients::all(mon)
                                      .for_each(|win| println!("{:#x} : {}",
@@ -216,7 +220,7 @@ fn repl_ls(_args: Vec<&str>) {
 }
 
 fn for_client_args<F: FnMut(&Client)>(args: Vec<&str>, mut act: F) {
-    let wins = args.iter().flat_map(|arg| match arg.parse::<u64>() {
+    let wins = args.iter().flat_map(|arg| match u64::from_str_radix(arg, 16) {
                                             Ok(w) => vec![w],
                                             Err(_) => vec![]
                                         })
@@ -227,8 +231,8 @@ fn for_client_args<F: FnMut(&Client)>(args: Vec<&str>, mut act: F) {
                                      .for_each(|c| act(c)));
 }
 
-fn repl_show(args: Vec<&str>) {
-    let wins = args.iter().flat_map(|arg| match arg.parse::<u64>() {
+fn repl_show(_streams: &mut Streams, args: Vec<&str>) {
+    let wins = args.iter().flat_map(|arg| match u64::from_str_radix(arg,16) {
                                             Ok(w) => vec![w],
                                             Err(_) => vec![]
                                         })

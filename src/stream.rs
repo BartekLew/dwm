@@ -21,7 +21,7 @@ impl Stream {
     }
 
     fn new_trace(name:String, handle: Window) -> Self {
-        unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
+        unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_SYNC, GRAB_MODE_SYNC) };
         Stream { handle: Some(handle), name, typ: StreamType::Trace, output: None }
     }
 
@@ -56,7 +56,8 @@ impl Stream {
                 match self.typ {
                     StreamType::Trace => {
                         unsafe {
-                            XSendEvent(dpy, ev.window, false, 3, ev);
+                            XAllowEvents(dpy, 5, ev.time);// ReplayKeyboard
+                            XFlush(dpy);
                         }
                     },
                     _ => {}

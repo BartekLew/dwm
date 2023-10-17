@@ -13,6 +13,7 @@ pub type Time = u64;
 
 pub const ANY_KEY : i32 = 0;
 pub const ANY_MODIFIER : u32 = 1 << 15;
+pub const GRAB_MODE_SYNC : i32 = 0;
 pub const GRAB_MODE_ASYNC : i32 = 1;
 
 pub fn null() -> Ptr {
@@ -28,7 +29,7 @@ pub struct XKeyEvent {
     pub window: Window, //offset 32
     _root: Window,
     _subwindow: Window,
-    _time: Time,
+    pub time: Time,
     _x: i32, _y: i32,
     _x_root: i32, _y_root: i32,
     pub state: u32, _keycode: u32,
@@ -45,7 +46,8 @@ extern "C" {
                 ptr_mode: i32, key_mode: i32) -> i32;
 
     pub fn XMoveWindow(dpy: Ptr, win: Window, x: i32, y: i32);
-    pub fn XSendEvent(dpy: Ptr, win: Window, propagate: bool, evmask: u64, ev: &XKeyEvent);
+    pub fn XAllowEvents(dpy: Ptr, evmode: u64, time: u64);
+    pub fn XFlush(dpy: Ptr);
 
     // dwm:
     pub static mut mons: *mut Monitor;
