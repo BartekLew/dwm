@@ -10,3 +10,4 @@ crate-type = [ 'staticlib' ]
 
 [dependencies]
 fdmux = { path = "/home/lew/code/fdmux" }
+png = "0.17.10"

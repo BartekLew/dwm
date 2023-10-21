@@ -3,7 +3,6 @@ use std::str;
 use std::slice;
 use std::fmt;
 use std::io::Write;
-use fdmux::*;
 
 pub type Window = u64;
 pub type KeySym = u64;
@@ -36,6 +35,7 @@ pub struct XKeyEvent {
     _same_screen: bool
 }
 
+pub type XImage = Ptr;
 extern "C" {
     // libc:
     pub fn strlen(cstr: CStr) -> usize;
@@ -48,6 +48,10 @@ extern "C" {
     pub fn XMoveWindow(dpy: Ptr, win: Window, x: i32, y: i32);
     pub fn XAllowEvents(dpy: Ptr, evmode: u64, time: u64);
     pub fn XFlush(dpy: Ptr);
+    pub fn XGetImage(dpy: Ptr, win: Window,
+                     x: i32, y: i32, w: i32, h: i32,
+                     planes: u64, format: i32) -> XImage;
+    pub fn XGetPixel(img: XImage, x: i32, y: i32) -> u64;
 
     // dwm:
     pub static mut mons: *mut Monitor;
@@ -161,7 +165,7 @@ pub struct Monitor {
 	_nmaster: i32,
 	_num: i32,
 	_by: i32,               /* bar geometry */
-	_mx: i32, _my: i32, _mw: i32, _mh: i32,   /* screen size */
+	_mx: i32, _my: i32, mw: i32, mh: i32,   /* screen size */
 	_wx: i32, _wy: i32, _ww:i32, _wh: i32,   /* window area  */
 	tags: u32,
 	sellt: u32,
@@ -172,6 +176,7 @@ pub struct Monitor {
 	stack: *mut Client,
 	next: *mut Monitor,
 	_barwin: Window,
+    root: Window,
 	lt: [Layout; 2]
 }
 
@@ -319,10 +324,42 @@ pub extern "C" fn arrange(mptr: *mut Monitor) {
 
 #[no_mangle]
 pub extern "C" fn screenshot(_: u64) {
-    Process::new(vec!["import", "-window", "root"])
-           .push_arg(format!("/tmp/screen-{:#x}.jpg\0", unsafe{time(null())}))
-           .spawn()
-           .map(|p| p.wait())
-           .unwrap_or(-1);
+    unsafe {
+        let w = (*selmon).mw as usize;
+        let h = (*selmon).mh as usize;
+        let winimg = XGetImage(dpy, (*selmon).root, 0, 0, w as i32, h as i32, 0xffffffff, 2); // AllPlanes, ZPixmap
+        if winimg == null() { return; }
+    
+        let mut screen_data = Vec::<u8>::with_capacity(w*h*4);
+        for y in 0..h {
+            for x in 0..w {
+                let pix = XGetPixel(winimg, x as i32, y as i32);
+                screen_data.push((pix >> 16) as u8);
+                screen_data.push((pix >> 8) as u8);
+                screen_data.push(pix as u8);
+                screen_data.push(0xff);
+            }
+        }
+    
+        match std::fs::File::create(format!("/tmp/screen-{:#x}.png", time(null()))) {
+            Ok(f) => {
+               let mut encoder = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
+               encoder.set_color(png::ColorType::Rgba);
+               encoder.set_depth(png::BitDepth::Eight);
+    
+               match encoder.write_header() {
+                  Ok(mut writer) => {
+                      match writer.write_image_data(&screen_data) {
+                          Ok(_) => {},
+                          Err(e) => println!("Error encoding screenshot png: {}", e)
+                      }
+                  }, Err(e) => {
+                      println!("Can't init screenshot png: {}",e);
+                  }
+               }
+            },
+            Err(e) => println!("Can't create screenshot png: {}", e)
+        };
+    }
 }
 

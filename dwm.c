@@ -124,6 +124,7 @@ struct Monitor {
 	Client *stack;
 	Monitor *next;
 	Window barwin;
+    Window root;
 	const Layout *lt[2];
 };
 
@@ -2053,6 +2054,7 @@ updategeom(void)
 					m->my = m->wy = unique[i].y_org;
 					m->mw = m->ww = unique[i].width;
 					m->mh = m->wh = unique[i].height;
+                    m->root = RootWindow(dpy, unique[i].screen_number);
 					updatebarpos(m);
 				}
 		} else { /* less monitors available nn < n */
