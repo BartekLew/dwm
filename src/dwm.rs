@@ -39,7 +39,7 @@ pub type XImage = Ptr;
 extern "C" {
     // libc:
     pub fn strlen(cstr: CStr) -> usize;
-    pub fn time(dst: Ptr) -> Time;
+    pub fn clock_gettime(typ: u64, tgt: *mut TimeSpec) -> i64;
 
     // xlib:
     pub fn XGrabKey(dpy: Ptr, key: i32, mods: u32, tgt: Window, owner_events: bool,
@@ -322,6 +322,25 @@ pub extern "C" fn arrange(mptr: *mut Monitor) {
     }
 }
 
+#[repr(C)]
+pub struct TimeSpec {
+    sec: u64, nsec: u64
+}
+
+impl TimeSpec {
+    pub fn since_boot() -> Self {
+        let mut ts = TimeSpec{ sec: 0, nsec: 0 };
+        unsafe { clock_gettime(1, &mut ts as *mut TimeSpec) };
+        ts
+    }
+}
+
+impl fmt::Display for TimeSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{:02}", self.sec, self.nsec/10000000)
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn screenshot(_: u64) {
     unsafe {
@@ -341,7 +360,7 @@ pub extern "C" fn screenshot(_: u64) {
             }
         }
     
-        match std::fs::File::create(format!("/tmp/screen-{:#x}.png", time(null()))) {
+        match std::fs::File::create(format!("/tmp/screen-{}.png", TimeSpec::since_boot())) {
             Ok(f) => {
                let mut encoder = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
                encoder.set_color(png::ColorType::Rgba);
