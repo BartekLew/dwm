@@ -341,34 +341,46 @@ impl fmt::Display for TimeSpec {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn screenshot(_: u64) {
-    unsafe {
-        let w = (*selmon).mw as usize;
-        let h = (*selmon).mh as usize;
-        let winimg = XGetImage(dpy, (*selmon).root, 0, 0, w as i32, h as i32, 0xffffffff, 2); // AllPlanes, ZPixmap
-        if winimg == null() { return; }
-    
-        let mut screen_data = Vec::<u8>::with_capacity(w*h*4);
-        for y in 0..h {
-            for x in 0..w {
-                let pix = XGetPixel(winimg, x as i32, y as i32);
-                screen_data.push((pix >> 16) as u8);
-                screen_data.push((pix >> 8) as u8);
-                screen_data.push(pix as u8);
-                screen_data.push(0xff);
+pub struct Image {
+    w: usize,
+    h: usize,
+    bytes: Vec<u8>
+}
+
+impl Image {
+    pub fn from_screen() -> Result<Self,&'static str> {
+        unsafe {
+            let w = (*selmon).mw as usize;
+            let h = (*selmon).mh as usize;
+            let winimg = XGetImage(dpy, (*selmon).root, 0, 0, w as i32, h as i32,
+                                   0xffffffff, 2); // AllPlanes, ZPixmap
+            if winimg == null() { return Err("XGetImage() failed") }
+        
+            let mut screen_data = Vec::<u8>::with_capacity(w*h*4);
+            for y in 0..h {
+                for x in 0..w {
+                    let pix = XGetPixel(winimg, x as i32, y as i32);
+                    screen_data.push((pix >> 16) as u8);
+                    screen_data.push((pix >> 8) as u8);
+                    screen_data.push(pix as u8);
+                    screen_data.push(0xff);
+                }
             }
+
+            Ok(Image { w, h, bytes: screen_data })
         }
-    
-        match std::fs::File::create(format!("/tmp/screen-{}.png", TimeSpec::since_boot())) {
+    }
+
+    pub fn store_png(&mut self, filename: String) {
+        match std::fs::File::create(filename) {
             Ok(f) => {
-               let mut encoder = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
+               let mut encoder = png::Encoder::new(std::io::BufWriter::new(f), self.w as u32, self.h as u32);
                encoder.set_color(png::ColorType::Rgba);
                encoder.set_depth(png::BitDepth::Eight);
     
                match encoder.write_header() {
                   Ok(mut writer) => {
-                      match writer.write_image_data(&screen_data) {
+                      match writer.write_image_data(&self.bytes) {
                           Ok(_) => {},
                           Err(e) => println!("Error encoding screenshot png: {}", e)
                       }
@@ -378,7 +390,15 @@ pub extern "C" fn screenshot(_: u64) {
                }
             },
             Err(e) => println!("Can't create screenshot png: {}", e)
-        };
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn screenshot(_: u64) {
+    match Image::from_screen() {
+        Ok(mut img) => img.store_png(format!("/tmp/screen-{}.png", TimeSpec::since_boot())),
+        Err(e) => println!("{}", e)
     }
 }
 
