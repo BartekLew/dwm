@@ -169,7 +169,8 @@ impl<'a> Console<'a> {
                                         (b'f', ccmd_fullscreen as DwmHandler<NamedWritePipe>),
                                         (b't', ccmd_trace_on as DwmHandler<NamedWritePipe>),
                                         (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
-                                        (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>)
+                                        (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>),
+                                        (b'k', ccmd_trace_keys as DwmHandler<NamedWritePipe>)
                                     ])
                                 } },
                 top: Topology::new(3)
@@ -235,12 +236,10 @@ fn repl_show(_streams: &mut Streams, args: Vec<&str>) {
     for_client_args(args, |client| println!("{}", client));
 }
 
-fn print_key_event(key: u64, ev: &XKeyEvent) {
-    println!("key:{:x}/{:x} @ {:#x}", key, ev.state, ev.window);
-}
-
 fn repl_trace(streams: &mut Streams, args: Vec<&str>) {
-    for_client_args(args, |client| streams.add_trace(client, print_key_event));
+    for_client_args(args, |client| streams.add(client,
+                                        StreamType::Trace(print_key_event), 
+                                        StreamOutput::Stdout));
 }
 
 #[no_mangle]
@@ -289,6 +288,11 @@ fn ccmd_trace_off<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
 
 fn ccmd_grab_ev<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
     let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
-    ctx.ev_streams.add_grab(s);
+    ctx.ev_streams.add_trap(s, StreamType::Grab(print_key_event), StreamOutput::Pipe(None));
+}
+
+fn ccmd_trace_keys<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
+    let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
+    ctx.ev_streams.add_trap(s, StreamType::Trace(print_key_event), StreamOutput::Pipe(None));
 }
 

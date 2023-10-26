@@ -1,13 +1,31 @@
 use crate::dwm::*;
 use fdmux::*;
+
 use std::io::Write;
 
-type TraceHandler = fn(key: KeySym, event: &XKeyEvent);
-pub enum StreamType { Trace(TraceHandler), Grab }
+pub enum StreamOutput {
+    Stdout,
+    Pipe(Option<NamedWritePipe>)
+}
+
+type TraceHandler = fn(output: &mut StreamOutput, key: KeySym, event: &XKeyEvent);
+pub enum StreamType { Trace(TraceHandler), Grab(TraceHandler) }
+
+pub fn print_key_event(out: &mut StreamOutput, key: u64, ev: &XKeyEvent) {
+    match out {
+        StreamOutput::Pipe(Some(o)) => {
+            o.write(format!("key:{:x}/{:x}\n\0", key, ev.state).as_bytes()).unwrap();
+        },
+        StreamOutput::Stdout => {
+            println!("key:{:x}/{:x} @ {:#x}", key, ev.state, ev.window);
+        },
+        _ => ()
+    }
+}
 
 struct Stream {
     handle: Option<Window>,
-    output: Option<NamedWritePipe>,
+    output: StreamOutput,
     typ: StreamType,
     name: String
 }
@@ -17,22 +35,22 @@ fn prefix_eq(prefix: &String, s: &String) -> bool {
 }
 
 impl Stream {
-    fn new_grab(name: String) -> Self {
-        Stream { handle: None, typ: StreamType::Grab, output: None, name: name }
+    fn new_trap(name: String, typ: StreamType, output: StreamOutput) -> Self {
+        Stream { handle: None, typ, output, name: name }
     }
 
-    fn new_trace(name:String, handle: Window, handler: TraceHandler) -> Self {
+    fn new(name:String, handle: Window, typ: StreamType, output: StreamOutput) -> Self {
         unsafe { XGrabKey(dpy, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_SYNC, GRAB_MODE_SYNC) };
-        Stream { handle: Some(handle), name, typ: StreamType::Trace(handler), output: None }
+        Stream { handle: Some(handle), name, typ, output }
     }
 
     fn try_window(&mut self, disp: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
         if self.handle.is_none() && prefix_eq(&self.name, name) {
-            unsafe { XGrabKey(disp, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
+            unsafe { XGrabKey(disp, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_SYNC) };
             match NamedWritePipe::new(format!("/tmp/dwm-{}-{}.xev", self.name, handle)) {
                 Ok(pipe) => {
                     let ptr = CLenStr::new(pipe.name.as_bytes());
-                    self.output = Some(pipe);
+                    self.output = StreamOutput::Pipe(Some(pipe));
                     self.handle = Some(handle);
                     Some(ptr)
                 }, Err(_) => None
@@ -45,22 +63,17 @@ impl Stream {
     fn try_key(&mut self, ev: &XKeyEvent, key: KeySym) -> bool {
         self.handle.map(|my_handle| {
             if ev.window == my_handle {
-                match &mut self.output {
-                    Some(o) => {
-                        o.write(format!("key:{:x}/{:x}\n\0", key, ev.state).as_bytes()).unwrap();
-                    },
-                    None => {}
-                };
-
                 match self.typ {
                     StreamType::Trace(handler) => {
                         unsafe {
-                            handler(key, ev);
                             XAllowEvents(dpy, 5, ev.time);// ReplayKeyboard
                             XFlush(dpy);
                         }
+                        handler(&mut self.output, key, ev);
                     },
-                    _ => {}
+                    StreamType::Grab(handler) => {
+                        handler(&mut self.output, key, ev);
+                    }
                 }
 
                 true
@@ -81,12 +94,14 @@ impl Streams {
         Streams { streams: Vec::with_capacity(5), dpy: disp }
     }
 
-    pub fn add_grab(&mut self, prefix: String) {
-        self.streams.push(Stream::new_grab(prefix));        
+    pub fn add_trap(&mut self, prefix: String, typ: StreamType, out: StreamOutput) {
+        self.streams.push(Stream::new_trap(prefix, typ, out));
     }
 
-    pub fn add_trace(&mut self, client: &Client, handler: TraceHandler) {
-        self.streams.push(Stream::new_trace(client.name_str(), client.win, handler));
+    pub fn add(&mut self, client: &Client, typ: StreamType, output: StreamOutput) {
+        self.streams.push(Stream::new(client.name_str(), client.win,
+            typ, output
+        ));
     }
 
     pub fn remove(&mut self, handle: Window) {
