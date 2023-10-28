@@ -70,6 +70,7 @@ extern "C" {
     pub fn lvtiled() -> *mut Layout;
     pub fn lnull() -> *mut Layout;
     pub fn lmono() -> *mut Layout;
+    pub fn setmfact(mf: &f32);
 }
 
 #[repr(C)]

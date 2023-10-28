@@ -194,7 +194,7 @@ static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
 void setlayout(const Arg *arg);
-static void setmfact(const Arg *arg);
+void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
 void showhide(Client *c);

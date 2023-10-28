@@ -3,6 +3,7 @@ use fdmux::*;
 use crate::dwm::*;
 use crate::stream::*;
 
+use std::str::FromStr;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::Error;
@@ -273,16 +274,51 @@ fn ccmd_focus_last<T: Write> (_args: &[u8], _ctx: &mut WMCtx<T>) {
     }
 }
 
-fn ccmd_change_layout<T:Write> (pars: &[u8], _ctx: &mut WMCtx<T>) {
-    unsafe {
-        match str::from_utf8(&pars[0..pars.len()-1]) {
-            Ok("tiled") => setlayout(&mut ltiled() as *mut *mut Layout),
-            Ok("vtiled") => setlayout(&mut lvtiled() as *mut *mut Layout),
-            Ok("null") => setlayout(&mut lnull() as *mut *mut Layout),
-            Ok("mono") => setlayout(&mut lmono() as *mut *mut Layout),
-            _ => {}
+struct LayDef<'a> {
+    name: &'a str,
+    screen_share: Option<f32>
+}
+
+impl<'a> LayDef<'a> {
+    fn new(arr: &'a [u8]) -> Option<Self> {
+        match str::from_utf8(arr) {
+            Ok(str) => {
+                match str.find('/') {
+                    Some(idx) => match f32::from_str(str.get((idx+1)..).unwrap()) {
+                                     Ok(fact) => Some(LayDef{ name: str.get(0..idx).unwrap(),
+                                                              screen_share: Some(fact) }),
+                                     Err(_) => Some(LayDef { name: str.get(0..idx).unwrap(),
+                                                             screen_share: None })
+                                 },
+                    None => Some(LayDef { name: str, screen_share: None })
+                }
+            },
+            _ => None
         }
     }
+
+    fn apply(self) {
+        unsafe {
+            match self.name {
+                "tiled" => setlayout(&mut ltiled() as *mut *mut Layout),
+                "vtiled" => setlayout(&mut lvtiled() as *mut *mut Layout),
+                "null" => setlayout(&mut lnull() as *mut *mut Layout),
+                "mono" => setlayout(&mut lmono() as *mut *mut Layout),
+                _ => {}
+            };
+
+            match self.screen_share {
+                // setmfact substracts 1.0 from value > 1.0 to set absolute value
+                // instead of relative
+                Some(ss) => setmfact(&(ss + 1.0)),
+                None => {}
+            }
+        }
+    }
+}
+
+fn ccmd_change_layout<T:Write> (pars: &[u8], _ctx: &mut WMCtx<T>) {
+    LayDef::new(&pars[0..pars.len()-1]).map(|ld| ld.apply());
 }
 
 fn ccmd_fullscreen<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
