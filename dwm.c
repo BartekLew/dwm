@@ -2448,6 +2448,14 @@ zoom(const Arg *arg)
 int
 main(int argc, char *argv[])
 {
+#ifdef RUN_AT_HOME
+    {
+        char *home = getenv("HOME");
+        //chdir in condition to avoid warning:
+        if(home != NULL && chdir(home)) {}
+    }
+#endif
+
 	if (argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION);
 	else if (argc != 1)

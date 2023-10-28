@@ -6,6 +6,9 @@
 /* Status line max width: */
 #define CONFIG_STATUS_W 50
 
+/* Enable if you want to chdir to home dir (useful for testing) */
+#define RUN_AT_HOME 0
+
 /* Pattern to match terminals: */
 #error "verify TERM_PATT :)"
 #define TERM_PATT "user@T430:"
