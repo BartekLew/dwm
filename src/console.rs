@@ -170,7 +170,8 @@ impl<'a> Console<'a> {
                                         (b't', ccmd_trace_on as DwmHandler<NamedWritePipe>),
                                         (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
                                         (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>),
-                                        (b'k', ccmd_trace_keys as DwmHandler<NamedWritePipe>)
+                                        (b'k', ccmd_trace_keys as DwmHandler<NamedWritePipe>),
+                                        (b'L', ccmd_change_layout as DwmHandler<NamedWritePipe>)
                                     ])
                                 } },
                 top: Topology::new(3)
@@ -272,9 +273,21 @@ fn ccmd_focus_last<T: Write> (_args: &[u8], _ctx: &mut WMCtx<T>) {
     }
 }
 
+fn ccmd_change_layout<T:Write> (pars: &[u8], _ctx: &mut WMCtx<T>) {
+    unsafe {
+        match str::from_utf8(&pars[0..pars.len()-1]) {
+            Ok("tiled") => setlayout(&mut ltiled() as *mut *mut Layout),
+            Ok("vtiled") => setlayout(&mut lvtiled() as *mut *mut Layout),
+            Ok("null") => setlayout(&mut lnull() as *mut *mut Layout),
+            Ok("mono") => setlayout(&mut lmono() as *mut *mut Layout),
+            _ => {}
+        }
+    }
+}
+
 fn ccmd_fullscreen<T: Write> (_pars: &[u8], _ctx: &mut WMCtx<T>) {
     unsafe {
-        setlayout(&mut layouts.offset(2) as *mut *mut Layout);
+        setlayout(&mut layouts.offset(3) as *mut *mut Layout);
     }
 }
 

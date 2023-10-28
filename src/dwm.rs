@@ -66,6 +66,10 @@ extern "C" {
     pub fn resize(c: *mut Client, x: i32, y:i32, w: i32, h:i32, interact: i32);
     pub fn arrangemon(m: *mut Monitor);
     pub fn restack(m: *mut Monitor);
+    pub fn ltiled() -> *mut Layout;
+    pub fn lvtiled() -> *mut Layout;
+    pub fn lnull() -> *mut Layout;
+    pub fn lmono() -> *mut Layout;
 }
 
 #[repr(C)]

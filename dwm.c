@@ -2478,3 +2478,7 @@ main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 }
 
+const Layout *ltiled() { return &layouts[0]; }
+const Layout *lvtiled() { return &layouts[1]; }
+const Layout *lnull() { return &layouts[2]; }
+const Layout *lmono() { return &layouts[3]; }
