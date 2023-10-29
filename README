@@ -22,6 +22,10 @@ necessary as root):
 If you are going to use the default bluegray color scheme it is highly
 recommended to also install the bluegray files shipped in the dextra package.
 
+You probably want to use login manager (like lightdm). If so, review
+`session/dwm-session` script and adjust to your needs. Then you can run
+
+    make install-session
 
 Running dwm
 -----------

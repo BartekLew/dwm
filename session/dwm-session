@@ -1,0 +1,27 @@
+cd $HOME
+xrdb < .Xdefaults
+
+xterm -fs 18&
+rm /tmp/dwm*
+xterm -fs 18 -e dwm &
+
+xscreensaver &
+
+sleep 1
+
+while :
+do
+    acpi | perl -e 'my $x = <>;
+                    if($x =~ m/Discharging[^\d]+(\d+%)[^\d]+(\d+:\d+:\d+)/) { 
+			print "Bat: $1 / $2\n"; 
+		    } elsif($x =~ m/(\d+%)/) { 
+			print "Bat: $1\n" 
+        	    }' > /tmp/dwm.in
+
+    if mpc | grep playing
+    then
+        mpc | sed 's/^.*\///' | head -c25 > /tmp/dwm.in
+    fi
+
+    sleep 5m
+done

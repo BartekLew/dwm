@@ -52,6 +52,15 @@ install: all
 	@sed "s/VERSION/${VERSION}/g" < dwm.1 > ${DESTDIR}${MANPREFIX}/man1/dwm.1
 	@chmod 644 ${DESTDIR}${MANPREFIX}/man1/dwm.1
 
+install-session: install
+	@echo session install
+	mkdir -p /usr/local/bin
+	cp session/dwm-session /usr/local/bin/
+	cp session/dwm.desktop /usr/share/xsessions/
+	chown root:root /usr/local/bin/dwm-session /usr/share/xsessions/dwm.desktop
+	chmod 755 /usr/local/bin/dwm-session
+	chmod 644 /usr/share/xsessions/dwm.desktop
+
 uninstall:
 	@echo removing executable file from ${DESTDIR}${PREFIX}/bin
 	@rm -f ${DESTDIR}${PREFIX}/bin/dwm

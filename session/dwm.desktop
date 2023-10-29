@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=DWM
+Exec=/usr/local/bin/dwm-session
+TryExec=/usr/local/bin/dwm-session
