@@ -177,7 +177,7 @@ pub struct Monitor {
 	_showbar: i32,
 	_topbar: i32,
 	clients: *mut Client,
-	_sel: *const Client,
+	pub sel: *const Client,
 	stack: *mut Client,
 	next: *mut Monitor,
 	_barwin: Window,
@@ -290,7 +290,14 @@ impl <'a> Iterator for Clients<'a>{
 
 pub fn ptr2str(ptr: CStr) -> String {
     unsafe {
-        String::from(str::from_utf8(slice::from_raw_parts(ptr, strlen(ptr))).unwrap())
+        let slice = slice::from_raw_parts(ptr, strlen(ptr));
+        match str::from_utf8(slice) {
+            Ok(s) => String::from(s),
+            Err(e) => {
+                println!("Error {}. String source: {:?}", e, slice);
+                String::from("??")
+            }
+        }
     }
 }
 

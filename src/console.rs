@@ -172,7 +172,8 @@ impl<'a> Console<'a> {
                                         (b'T', ccmd_trace_off as DwmHandler<NamedWritePipe>),
                                         (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>),
                                         (b'k', ccmd_trace_keys as DwmHandler<NamedWritePipe>),
-                                        (b'L', ccmd_change_layout as DwmHandler<NamedWritePipe>)
+                                        (b'L', ccmd_change_layout as DwmHandler<NamedWritePipe>),
+                                        (b'd', ccmd_detect_self as DwmHandler<NamedWritePipe>)
                                     ])
                                 } },
                 top: Topology::new(3)
@@ -343,5 +344,25 @@ fn ccmd_grab_ev<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
 fn ccmd_trace_keys<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
     let s = String::from(str::from_utf8(&pars[0..pars.len()-1]).unwrap());
     ctx.ev_streams.add_trap(s, StreamType::Trace(print_key_event), StreamOutput::Pipe(None));
+}
+
+fn ccmd_detect_self<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
+    let name = str::from_utf8(&pars[0..pars.len()-1]).unwrap();
+    if name.len() > 0 {
+        let sel = unsafe { (*selmon).sel };
+        if sel > 0 as *mut Client {
+            let sel = unsafe { &*sel };
+            let title = ptr2str(&sel.name as *const u8);
+            if title.eq(name) {
+                if let Err(e) = ctx.cmdout.write(format!("{:#x}\n", sel.win).as_bytes()) {
+                    println!("warning: {}", e);
+                }
+            } else {
+                if let Err(e) = ctx.cmdout.write("null\n".as_bytes()) {
+                    println!("warning: {}", e);
+                }
+            }
+        }
+    }
 }
 
