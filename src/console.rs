@@ -173,7 +173,8 @@ impl<'a> Console<'a> {
                                         (b'g', ccmd_grab_ev as DwmHandler<NamedWritePipe>),
                                         (b'k', ccmd_trace_keys as DwmHandler<NamedWritePipe>),
                                         (b'L', ccmd_change_layout as DwmHandler<NamedWritePipe>),
-                                        (b'd', ccmd_detect_self as DwmHandler<NamedWritePipe>)
+                                        (b'd', ccmd_detect_self as DwmHandler<NamedWritePipe>),
+                                        (b'F', ccmd_focus as DwmHandler<NamedWritePipe>)
                                     ])
                                 } },
                 top: Topology::new(3)
@@ -233,6 +234,22 @@ fn for_client_args<F: FnMut(&Client)>(args: Vec<&str>, mut act: F) {
              .for_each(|mon| Clients::all(mon)
                                      .filter(|win| wins.contains(&win.win))
                                      .for_each(|c| act(c)));
+}
+
+fn for_client_arg<F: FnMut(&mut Client)>(arg: &str, mut act: F) {
+    let wid = match u64::from_str_radix(arg, 16) {
+                     Ok(w) => w,
+                     Err(_) => {return;}
+                };
+
+    for m in Monitors::all() {
+        for c in Clients::all(m) {
+            if c.win == wid {
+                act(c);
+                return;
+            }
+        }
+    }
 }
 
 fn repl_show(_streams: &mut Streams, args: Vec<&str>) {
@@ -366,3 +383,7 @@ fn ccmd_detect_self<T: Write> (pars: &[u8], ctx: &mut WMCtx<T>) {
     }
 }
 
+fn ccmd_focus<T: Write> (pars: &[u8], _ctx: &mut WMCtx<T>) {
+    let s = str::from_utf8(&pars[0..pars.len()]).unwrap().trim();
+    for_client_arg(s, |c| c.focus());
+}

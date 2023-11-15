@@ -153,6 +153,13 @@ impl Client {
     pub fn name_str(&self) -> String {
         String::from(str::from_utf8(&self.name).unwrap())
     }
+
+    pub fn focus(&mut self) {
+        unsafe {
+            focus(self);
+            restack(selmon);
+        }
+    }
 }
 
 impl fmt::Display for Client {
@@ -263,27 +270,27 @@ impl <'a> Iterator for Monitors <'a> {
 }
 
 pub struct Clients<'a> {
-    cur: Option<&'a Client>
+    cur: Option<&'a mut Client>
 }
 
 impl<'a> Clients<'a> {
-    pub fn new(val: *mut Client) -> Self { Clients { cur: unsafe {val.as_ref()} } }
+    pub fn new(val: *mut Client) -> Self { Clients { cur: Client::from_ptr(val) } } 
     pub fn all(mon: &Monitor) -> Self { 
         Self::new(mon.clients)
     }
 }
 
 impl <'a> Iterator for Clients<'a>{
-    type Item = &'a Client;
+    type Item = &'a mut Client;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.cur {
-            Some(val) => {
-                self.cur = unsafe {val.next.as_ref()};
+        let next = self.cur.take();
+        if let Some(val) = next {
+            self.cur = Client::from_ptr(val.next);
 
-                Some(val)
-            },
-            None => None
+            Some(val)
+        } else {
+            None
         }
     }
 }
