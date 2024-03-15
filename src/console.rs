@@ -156,7 +156,8 @@ impl<'a> Console<'a> {
                 repl: Repl::new(&mut *streams_ptr, HashMap::from([
                         ("ls", repl_ls as ReplHandler),
                         ("show", repl_show as ReplHandler),
-                        ("trace", repl_trace as ReplHandler)
+                        ("trace", repl_trace as ReplHandler),
+                        ("winoffset", repl_winoff as ReplHandler)
                     ])),
                 cmd: DestBuff { pipe: NamedReadPipe::new("/tmp/dwm.cmd".to_string()).unwrap(),
                                 call: DwmCommand{
@@ -260,6 +261,19 @@ fn repl_trace(streams: &mut Streams, args: Vec<&str>) {
     for_client_args(args, |client| streams.add(client,
                                         StreamType::Trace(print_key_event), 
                                         StreamOutput::Stdout));
+}
+
+fn repl_winoff(_streams: &mut Streams, args: Vec<&str>) {
+    match u64::from_str_radix(args[0],10)
+             .and_then(|x| u64::from_str_radix(args[1],10)
+                              .map(|y| (x,y))) {
+        Ok((ox,oy)) => {
+            if let Some(mon) = Monitor::from_ptr(unsafe{selmon}) {
+                mon.set_window_offset(ox, oy);
+            }
+        },
+        Err(e) => { println!("Error: {}", e); }
+    }
 }
 
 #[no_mangle]

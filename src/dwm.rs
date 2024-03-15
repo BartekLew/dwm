@@ -178,7 +178,7 @@ pub struct Monitor {
 	_num: i32,
 	_by: i32,               /* bar geometry */
 	_mx: i32, _my: i32, mw: i32, mh: i32,   /* screen size */
-	_wx: i32, _wy: i32, _ww:i32, _wh: i32,   /* window area  */
+	wx: i32, wy: i32, ww:i32, wh: i32,   /* window area  */
 	tags: u32,
 	sellt: u32,
 	_showbar: i32,
@@ -218,6 +218,13 @@ impl Monitor {
             arrangemon(self as *mut Monitor);
             restack(self as *mut Monitor);
         }
+    }
+
+    pub fn set_window_offset(&mut self, ox: u64, oy: u64) {
+        self.wx = ox as i32;
+        self.wy = oy as i32;
+        self.ww = self.mw - ox as i32;
+        self.wh = self.mh - oy as i32;
     }
 }
 
