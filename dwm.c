@@ -715,6 +715,9 @@ drawbar(Monitor *m)
 	}
 
 	for (c = m->clients; c; c = c->next) {
+        if (c == c->mon->keyboard)
+            continue;
+
 		occ |= c->tags;
 		if (c->isurgent)
 			urg |= c->tags;
@@ -1080,6 +1083,7 @@ manage(Window w, XWindowAttributes *wa)
         if(strcmp(c->name, TOUCH_KEYBOARD_TITLE) == 0) {
             selmon->keyboard = c;
             c->x = 0;
+            c->tags = 0xffffff;
             c->w = selmon->ww;
             c->h = MIN(selmon->wh/3, selmon->ww / 2);
             c->y = selmon->wh - c->h;
