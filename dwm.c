@@ -53,7 +53,6 @@
 #define CLEANMASK(mask)         (mask & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLE(C)            ((C->tags & C->mon->tags))
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -126,6 +125,7 @@ struct Monitor {
 	Window barwin;
     Window root;
 	const Layout *lt[2];
+    Client *keyboard;
 };
 
 typedef struct {
@@ -175,7 +175,7 @@ static void killclient(const Arg *arg);
 static void manage(Window w, XWindowAttributes *wa);
 static void mappingnotify(XEvent *e);
 static void maprequest(XEvent *e);
-static void monocle(Monitor *m);
+static void arrange_monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
 static Client *nexttiled(Client *c);
@@ -208,8 +208,8 @@ static void ignore(const Arg *arg) {}
 static void keymap(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
-static void tile(Monitor *);
-static void tile_vertical(Monitor *);
+static void arrange_tile(Monitor *);
+static void arrange_tile_vertical(Monitor *);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void toggletag(const Arg *arg);
@@ -275,9 +275,17 @@ Streams ev_streams;
 
 char term_title[15] = {0};
 
-
 /* configuration, allows nested code to access above variables */
 #include "config.h"
+
+#ifdef __WITH_TOUCH_KEYBOARD
+    #define MON_HEIGHT(MON) ((MON)->keyboard? (MON)->wh - (MON)->keyboard->h : (MON)->wh)
+    #define ISVISIBLE(C)            ((C->tags & C->mon->tags) && (C)->mon->keyboard != (C))
+#else
+    #define MON_HEIGHT(MON) (MON)->wh
+    #define ISVISIBLE(C)            ((C->tags & C->mon->tags))
+#endif
+
 
 static char console_msg[CONFIG_STATUS_W];
 
@@ -343,7 +351,7 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 		if (*x >= m->wx + m->ww)
 			*x = m->wx + m->ww - WIDTH(c);
 		if (*y >= m->wy + m->wh)
-			*y = m->wy + m->wh - HEIGHT(c);
+			*y = m->wy + MON_HEIGHT(m) - HEIGHT(c);
 		if (*x + *w + 2 * c->bw <= m->wx)
 			*x = m->wx;
 		if (*y + *h + 2 * c->bw <= m->wy)
@@ -563,7 +571,7 @@ configurenotify(XEvent *e)
 			for (m = mons; m; m = m->next) {
 				for (c = m->clients; c; c = c->next)
 					if (c->isfullscreen)
-						resizeclient(c, m->mx, m->my, m->mw, m->mh);
+						resizeclient(c, m->mx, m->my, m->mw, MON_HEIGHT(m));
 				XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, m->ww, bh);
 			}
 			focus(NULL);
@@ -635,6 +643,7 @@ createmon(void)
 	m->nmaster = nmaster;
 	m->showbar = showbar;
 	m->topbar = topbar;
+    m->keyboard = NULL;
 	m->lt[0] = &layouts[0];
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
@@ -1066,8 +1075,20 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
 		XRaiseWindow(dpy, c->win);
-	attach(c);
-	attachstack(c);
+
+    #ifdef __WITH_TOUCH_KEYBOARD
+        if(strcmp(c->name, TOUCH_KEYBOARD_TITLE) == 0) {
+            selmon->keyboard = c;
+            c->x = 0;
+            c->w = selmon->ww;
+            c->h = MIN(selmon->wh/3, selmon->ww / 2);
+            c->y = selmon->wh - c->h;
+        }
+    #endif
+   
+    attach(c);
+    attachstack(c);
+
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
@@ -1105,7 +1126,7 @@ maprequest(XEvent *e)
 }
 
 void
-monocle(Monitor *m)
+arrange_monocle(Monitor *m)
 {
 	unsigned int n = 0;
 	Client *c;
@@ -1116,7 +1137,12 @@ monocle(Monitor *m)
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
+        #ifdef __WITH_TOUCH_KEYBOARD
+            if(c != m->keyboard)
+                resize(c, m->wx, m->wy, m->ww - 2 * c->bw, MON_HEIGHT(m) - 2 * c->bw, 0);
+        #else
+            resize(c, m->wx, m->wy, m->ww - 2 * c->bw, MON_HEIGHT(m) - 2 * c->bw, 0);
+        #endif
 }
 
 void
@@ -1831,7 +1857,7 @@ tagmon(const Arg *arg)
 }
 
 void
-tile(Monitor *m)
+arrange_tile(Monitor *m)
 {
 	unsigned int i, n, h, mw, my, ty;
 	Client *c;
@@ -1846,18 +1872,26 @@ tile(Monitor *m)
 		mw = m->ww;
 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+            #ifdef __WITH_TOUCH_KEYBOARD
+                if(c == m->keyboard) continue;
+            #endif
+
+			h = (MON_HEIGHT(m) - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
 			my += HEIGHT(c);
 		} else {
-			h = (m->wh - ty) / (n - i);
+            #ifdef __WITH_TOUCH_KEYBOARD
+                if(c == m->keyboard) continue;
+            #endif
+
+			h = (MON_HEIGHT(m) - ty) / (n - i);
 			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
 			ty += HEIGHT(c);
 		}
 }
 
 void
-tile_vertical(Monitor *m)
+arrange_tile_vertical(Monitor *m)
 {
 	unsigned int i, n, w, mh, mx, tx;
 	Client *c;
@@ -1869,15 +1903,23 @@ tile_vertical(Monitor *m)
 	if (n > m->nmaster)
 		mh = m->nmaster ? m->wh * m->mfact : 0;
 	else
-		mh = m->wh;
+		mh = MON_HEIGHT(m);
 	for (i = mx = tx = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if (i < m->nmaster) {
+            #ifdef __WITH_TOUCH_KEYBOARD
+                if(c == m->keyboard) continue;
+            #endif
+            
 			w = (m->ww - mx) / (MIN(n, m->nmaster) - i);
 			resize(c, m->wx + mx, m->wy, w - (2*c->bw), mh - (2*c->bw), 0);
 			mx += WIDTH(c);
 		} else {
+            #ifdef __WITH_TOUCH_KEYBOARD
+                if(c == m->keyboard) continue;
+            #endif
+
 			w = (m->ww - tx) / (n - i);
-			resize(c, m->wx + tx, m->wy + mh, w - (2*c->bw), m->wh - mh - (2*c->bw), 0);
+			resize(c, m->wx + tx, m->wy + mh, w - (2*c->bw), mh - (2*c->bw), 0);
 			tx += WIDTH(c);
 		}
 }
@@ -1951,12 +1993,19 @@ unmanage(Client *c, int destroyed)
 	Monitor *m = c->mon;
 	XWindowChanges wc;
 
+
     if(c == lastc) {
         lastc = NULL;
         if (trace_p) {
             console_log_del(console, c->name, c->win);
         }
     }
+
+    #ifdef __WITH_TOUCH_KEYBOARD
+        if(m->keyboard == c) {
+            m->keyboard = NULL;
+        }
+    #endif
 
 	detach(c);
 	detachstack(c);
@@ -2109,7 +2158,8 @@ updategeom(void)
 		if (mons->mw != sw || mons->mh != sh) {
 			dirty = 1;
 			mons->mw = mons->ww = sw;
-			mons->mh = mons->wh = sh;
+			mons->wh = sh;
+            mons->mh = MON_HEIGHT(mons);
 			updatebarpos(mons);
 		}
 	}

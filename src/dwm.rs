@@ -189,7 +189,8 @@ pub struct Monitor {
 	next: *mut Monitor,
 	_barwin: Window,
     root: Window,
-	lt: [Layout; 2]
+	lt: [Layout; 2],
+    keyboard: *mut Client
 }
 
 impl Monitor {

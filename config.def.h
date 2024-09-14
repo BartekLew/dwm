@@ -13,6 +13,13 @@
 #error "verify TERM_PATT :)"
 #define TERM_PATT "user@T430:"
 
+/* If we want to support special treatment of touch-keyboard,
+   we have to specify what window title to look for and enable
+   proper flag:
+
+#define __WITH_TOUCH_KEYBOARD
+#define TOUCH_KEYBOARD_TITLE "Onboard" */
+
 /* appearance */
 static const unsigned int borderpx  = 1;        /* border pixel of windows */
 static const unsigned int snap      = 32;       /* snap pixel */
@@ -52,10 +59,10 @@ static const int resizehints = 1;    /* 1 means respect size hints in tiled resi
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },    /* first entry is default */
-	{ "[]v",      tile_vertical },
+	{ "[]=",      arrange_tile },    /* first entry is default */
+	{ "[]v",      arrange_tile_vertical },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
-	{ "[M]",      monocle },
+	{ "[M]",      arrange_monocle },
 };
 
 /* key definitions */
