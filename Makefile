@@ -27,7 +27,7 @@ dwm: ${OBJ} target/debug/libdwm.a
 	${CC} -o $@ ${OBJ} target/debug/libdwm.a ${LDFLAGS}
 
 target/debug/libdwm.a: src/stream.rs src/console.rs src/dwm.rs
-	cargo build 2>&1 | ./rustline.pl
+	cargo build ${RUST_FLAGS} 2>&1 | ./rustline.pl
 
 clean:
 	@echo cleaning

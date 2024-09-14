@@ -46,7 +46,12 @@ impl Stream {
 
     fn try_window(&mut self, disp: Ptr, handle: Window, name: &String) -> Option<CLenStr> {
         if self.handle.is_none() && prefix_eq(&self.name, name) {
+            #[cfg(feature = "workaround_nonblocking_grabkey")]
             unsafe { XGrabKey(disp, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_ASYNC) };
+
+            #[cfg(not(feature = "workaround_nonblocking_grabkey"))]
+            unsafe { XGrabKey(disp, ANY_KEY, ANY_MODIFIER, handle, true, GRAB_MODE_ASYNC, GRAB_MODE_SYNC) };
+
             match NamedWritePipe::new(format!("/tmp/dwm-{}-{}.xev", self.name, handle)) {
                 Ok(pipe) => {
                     let ptr = CLenStr::new(pipe.name.as_bytes());

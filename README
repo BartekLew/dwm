@@ -54,3 +54,19 @@ Configuration
 -------------
 The configuration of dwm is done by creating a custom config.h
 and (re)compiling the source code. Example config is in config.def.h
+
+Known Problems
+--------------
+
+Depending on machine, different way of calling XGrabKey is needed
+to provide key grabbing that allows target client get it despite
+being grabbed. If `trace` feature causes that client doesn't react
+to any clicks on it, you probably need to turn that workaround on.
+
+In config.mk comment 
+
+RUST_FLAGS=
+
+and uncomment
+
+#RUST_FLAGS=--features workaround_nonblocking_grabkey

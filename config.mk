@@ -36,3 +36,9 @@ LDFLAGS  = -s ${LIBS}
 
 # compiler and linker
 CC = gcc
+
+# Rust compilation flags,
+# now used to activate a workaround problem with grabbing keys
+
+RUST_FLAGS=
+#RUST_FLAGS=--features workaround_nonblocking_grabkey

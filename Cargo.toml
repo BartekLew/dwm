@@ -11,3 +11,10 @@ crate-type = [ 'staticlib' ]
 [dependencies]
 fdmux = { path = "/home/lew/code/fdmux" }
 png = "0.17.10"
+
+[features]
+# Depending on machine, different way of calling XGrabKey is needed
+# to provide key grabbing that allows target client get it despite
+# being grabbed. If `trace` feature causes that client doesn't react
+# to any clicks on it, you probably need to turn that workaround on.
+workaround_nonblocking_grabkey = []
