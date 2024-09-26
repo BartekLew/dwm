@@ -1096,7 +1096,7 @@ manage(Window w, XWindowAttributes *wa)
             c->tags = 0xffffff;
             c->w = selmon->ww;
             c->h = MIN(selmon->wh/3, selmon->ww / 2);
-            c->y = selmon->wh - c->h;
+            c->y = selmon->mh - c->h;
         }
     #endif
    
