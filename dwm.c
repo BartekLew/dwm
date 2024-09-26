@@ -573,6 +573,16 @@ configurenotify(XEvent *e)
 					if (c->isfullscreen)
 						resizeclient(c, m->mx, m->my, m->mw, MON_HEIGHT(m));
 				XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, m->ww, bh);
+                
+                #ifdef __WITH_TOUCH_KEYBOARD
+                    if(m->keyboard) {
+                        Client *kb = m->keyboard;
+                        kb->w = sw;
+                        kb->h = MIN(sh/4, sw / 2);
+                        kb->y = sh - kb->h;
+						resizeclient(kb, kb->x, kb->y, kb->w, kb->h);
+                    }
+                #endif
 			}
 			focus(NULL);
 			arrange(NULL);
