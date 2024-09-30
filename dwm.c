@@ -578,9 +578,10 @@ configurenotify(XEvent *e)
                     if(m->keyboard) {
                         Client *kb = m->keyboard;
                         kb->w = sw;
-                        kb->h = MIN(sh/4, sw / 2);
+                        kb->h = MIN(sh/5, sw / 2);
                         kb->y = sh - kb->h;
 						resizeclient(kb, kb->x, kb->y, kb->w, kb->h);
+                        arrangemon(m);
                     }
                 #endif
 			}
@@ -1095,7 +1096,7 @@ manage(Window w, XWindowAttributes *wa)
             c->x = 0;
             c->tags = 0xffffff;
             c->w = selmon->ww;
-            c->h = MIN(selmon->wh/3, selmon->ww / 2);
+            c->h = MIN(selmon->wh/5, selmon->ww / 2);
             c->y = selmon->mh - c->h;
         }
     #endif
@@ -1185,10 +1186,26 @@ movemouse(const Arg *arg)
 	XEvent ev;
 	Time lasttime = 0;
 
-	if (!(c = selmon->sel))
-		return;
-	if (c->isfullscreen) /* no support moving fullscreen windows by mouse */
-		return;
+    #ifdef __WITH_TOUCH_KEYBOARD
+        Window nroot, nwin;
+        int xx;
+        uint uxx;
+        XQueryPointer(dpy, root, &nroot, &nwin, &xx, &xx, &xx, &xx, &uxx);
+        if(nwin == selmon->keyboard->win)
+            return;
+        else {
+            if (!(c = selmon->sel))
+                return;
+            if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
+                return;
+        }
+    #else
+    	if (!(c = selmon->sel))
+    		return;
+    	if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
+    		return;
+    #endif
+
 	restack(selmon);
 	ocx = c->x;
 	ocy = c->y;
@@ -1334,10 +1351,26 @@ resizemouse(const Arg *arg)
 	XEvent ev;
 	Time lasttime = 0;
 
-	if (!(c = selmon->sel))
-		return;
-	if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
-		return;
+    #ifdef __WITH_TOUCH_KEYBOARD
+        Window nroot, nwin;
+        int xx;
+        uint uxx;
+        XQueryPointer(dpy, root, &nroot, &nwin, &xx, &xx, &xx, &xx, &uxx);
+        if(nwin == selmon->keyboard->win)
+            c = selmon->keyboard;
+        else {
+            if (!(c = selmon->sel))
+                return;
+            if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
+                return;
+        }
+    #else
+    	if (!(c = selmon->sel))
+    		return;
+    	if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
+    		return;
+    #endif
+
 	restack(selmon);
 	ocx = c->x;
 	ocy = c->y;
@@ -1358,6 +1391,16 @@ resizemouse(const Arg *arg)
 				continue;
 			lasttime = ev.xmotion.time;
 
+            #ifdef __WITH_TOUCH_KEYBOARD
+                if(c == selmon->keyboard) {
+                    int ny = MIN(ev.xmotion.y_root, selmon->wh - 100) + c->bw * 2;
+                        nh = selmon->wh - ny;
+                    resize(c, c->x, ny, c->w, nh, 1);
+                    arrangemon(selmon);
+                    break;
+                }
+            #endif
+
 			nw = MAX(ev.xmotion.x - ocx - 2 * c->bw + 1, 1);
 			nh = MAX(ev.xmotion.y - ocy - 2 * c->bw + 1, 1);
 			if (c->mon->wx + nw >= selmon->wx && c->mon->wx + nw <= selmon->wx + selmon->ww
@@ -1367,6 +1410,7 @@ resizemouse(const Arg *arg)
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
 					togglefloating(NULL);
 			}
+
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, c->x, c->y, nw, nh, 1);
 			break;
@@ -2428,10 +2472,15 @@ wintoclient(Window w)
 	Client *c;
 	Monitor *m;
 
-	for (m = mons; m; m = m->next)
+	for (m = mons; m; m = m->next) {
+        Client *kb = m->keyboard;
+        if (kb && kb->win == w)
+            return kb;
+
 		for (c = m->clients; c; c = c->next)
 			if (c->win == w)
 				return c;
+        }
 	return NULL;
 }
 
