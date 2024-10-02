@@ -1355,7 +1355,8 @@ resizemouse(const Arg *arg)
         Window nroot, nwin;
         int xx;
         uint uxx;
-        XQueryPointer(dpy, root, &nroot, &nwin, &xx, &xx, &xx, &xx, &uxx);
+        int cy;
+        XQueryPointer(dpy, root, &nroot, &nwin, &xx, &xx, &xx, &cy, &uxx);
         if(nwin == selmon->keyboard->win)
             c = selmon->keyboard;
         else {
@@ -1392,7 +1393,7 @@ resizemouse(const Arg *arg)
 			lasttime = ev.xmotion.time;
 
             #ifdef __WITH_TOUCH_KEYBOARD
-                if(c == selmon->keyboard) {
+                if(c == selmon->keyboard && abs(cy - ocy) <= 10) {
                     int ny = MIN(ev.xmotion.y_root, selmon->wh - 100) + c->bw * 2;
                         nh = selmon->wh - ny;
                     resize(c, c->x, ny, c->w, nh, 1);
