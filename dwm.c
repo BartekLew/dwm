@@ -1395,7 +1395,7 @@ resizemouse(const Arg *arg)
             #ifdef __WITH_TOUCH_KEYBOARD
                 if(c == selmon->keyboard && abs(cy - ocy) <= 10) {
                     int ny = MIN(ev.xmotion.y_root, selmon->wh - 100) + c->bw * 2;
-                        nh = selmon->wh - ny;
+                        nh = selmon->mh - ny;
                     resize(c, c->x, ny, c->w, nh, 1);
                     arrangemon(selmon);
                     break;
