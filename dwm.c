@@ -42,6 +42,7 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
+#include <unistd.h>
 
 #include "drw.h"
 #include "util.h"
@@ -1507,6 +1508,8 @@ run(void)
 		    if (handler[ev.type])
 			    handler[ev.type](&ev); /* call handler */
         }
+
+        usleep(50000);
     }
 
     close_console (console);
