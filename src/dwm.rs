@@ -215,9 +215,9 @@ impl Monitor {
 
     pub fn arrange(&mut self) {
         unsafe {
-            showhide(self.stack);
-            arrangemon(self as *mut Monitor);
             restack(self as *mut Monitor);
+            arrangemon(self as *mut Monitor);
+            showhide(self.stack);
         }
     }
 

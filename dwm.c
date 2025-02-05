@@ -804,6 +804,10 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
+    if (c && c == selmon->keyboard) {
+        return;
+    }
+
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
